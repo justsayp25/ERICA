@@ -1,0 +1,13 @@
+node_modules/
+.expo/
+dist/
+web-build/
+*.log
+.env
+.env.local
+.DS_Store
+build/
+android/app/build/
+ios/build/
+*.jks
+*.keystore
