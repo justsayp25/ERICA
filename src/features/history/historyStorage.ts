@@ -25,3 +25,8 @@ export async function resolveHistoryEntry(sessionId: string, resolvedAt: number)
   const updated = history.map((h) => (h.sessionId === sessionId ? { ...h, resolvedAt } : h));
   await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
 }
+
+export async function clearHistory(): Promise<void> {
+  await AsyncStorage.removeItem(STORAGE_KEY);
+}
+
