@@ -19,7 +19,9 @@ export type SosEvent =
   | { type: 'TRIGGER'; source?: string }
   | { type: 'CANCEL' }
   | { type: 'TICK' }
-  | { type: 'MARK_SAFE' };
+  | { type: 'MARK_SAFE' }
+  | { type: 'DISMISS' }
+  | { type: 'SETTINGS_UPDATED'; countdownSeconds: number };
 
 const initialContext: SosContext = {
   triggerSource: 'Manual Button',
@@ -44,7 +46,13 @@ const loadSettings = fromPromise(async () => getSettings());
 const dispatchEmergency = fromPromise(async ({ input }: { input: { context: SosContext } }) => {
   const { context } = input;
   const [contacts, location] = await Promise.all([getContacts(), getCurrentLocation()]);
-  await dispatchEmergencySms({ contacts, location, triggerSource: context.triggerSource });
+  const result = await dispatchEmergencySms({ contacts, location, triggerSource: context.triggerSource });
+  if (!result.attempted) {
+    if (contacts.length === 0) {
+      throw new Error('No trusted contacts configured. Please add contacts in the Contacts tab first.');
+    }
+    throw new Error('SMS service is unavailable on this device.');
+  }
   await appendHistoryEntry({
     sessionId: context.sessionId as string,
     triggerSource: context.triggerSource,
@@ -89,6 +97,12 @@ export const sosMachine = setup({
         },
       },
       on: {
+        SETTINGS_UPDATED: {
+          actions: assign(({ event }) => ({
+            countdownTotal: event.countdownSeconds,
+            secondsRemaining: event.countdownSeconds,
+          })),
+        },
         TRIGGER: {
           target: 'countdown',
           actions: assign(({ context, event }) => ({
@@ -123,12 +137,21 @@ export const sosMachine = setup({
         },
         onError: {
           target: 'active',
-          actions: assign({ lastError: ({ event }) => String(event.error) }),
+          actions: assign({
+            lastError: ({ event }) =>
+              event.error instanceof Error ? event.error.message : String(event.error),
+          }),
         },
       },
     },
     active: {
-      on: { MARK_SAFE: 'resolving' },
+      on: {
+        MARK_SAFE: 'resolving',
+        DISMISS: {
+          target: 'idle',
+          actions: assign(() => initialContext),
+        },
+      },
     },
     resolving: {
       invoke: {

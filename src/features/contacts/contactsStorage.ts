@@ -24,9 +24,17 @@ export async function addContact(contact: Omit<Contact, 'id'>): Promise<Contact[
   return updated;
 }
 
+export async function updateContact(updatedContact: Contact): Promise<Contact[]> {
+  const contacts = await getContacts();
+  const updated = contacts.map((c) => (c.id === updatedContact.id ? updatedContact : c));
+  await saveContacts(updated);
+  return updated;
+}
+
 export async function removeContact(id: string): Promise<Contact[]> {
   const contacts = await getContacts();
   const updated = contacts.filter((c) => c.id !== id);
   await saveContacts(updated);
   return updated;
 }
+

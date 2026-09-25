@@ -1,17 +1,27 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { NavigationContainer, DarkTheme } from '@react-navigation/native';
-import { SosScreen } from '../features/sos/SosScreen';
-import { ContactsScreen } from '../features/contacts/ContactsScreen';
-import { HistoryScreen } from '../features/history/HistoryScreen';
-import { SettingsScreen } from '../features/settings/SettingsScreen';
+import { SosScreen } from '../features/sos';
+import { ContactsScreen } from '../features/contacts';
+import { HistoryScreen } from '../features/history';
+import { SettingsScreen } from '../features/settings';
 
 const Tab = createBottomTabNavigator();
 
 export function RootNavigator() {
   return (
     <NavigationContainer theme={DarkTheme}>
-      <Tab.Navigator screenOptions={{ headerShown: false, tabBarActiveTintColor: '#D7263D' }}>
+      <Tab.Navigator
+        screenOptions={{
+          headerShown: false,
+          tabBarActiveTintColor: '#D7263D',
+          tabBarInactiveTintColor: '#8E8E93',
+          tabBarStyle: {
+            backgroundColor: '#121216',
+            borderTopColor: '#1C1C1E',
+          },
+        }}
+      >
         <Tab.Screen name="SOS" component={SosScreen} />
         <Tab.Screen name="Contacts" component={ContactsScreen} />
         <Tab.Screen name="History" component={HistoryScreen} />
