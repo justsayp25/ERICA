@@ -1,12 +1,14 @@
 import React, { useCallback, useState } from 'react';
 import { View, Text, TextInput, Pressable, FlatList, StyleSheet } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
-import { addContact, getContacts, removeContact, type Contact } from './contactsStorage';
+import { addContact, getContacts, removeContact, updateContact, type Contact } from './contactsStorage';
 
 export function ContactsScreen() {
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const load = useCallback(() => {
     getContacts().then(setContacts);
@@ -14,15 +16,33 @@ export function ContactsScreen() {
 
   useFocusEffect(load);
 
-  const onAdd = async () => {
+  const onSave = async () => {
     if (!name.trim() || !phone.trim()) return;
-    setContacts(await addContact({ name: name.trim(), phoneNumber: phone.trim() }));
+    if (editingId) {
+      const updated = await updateContact({ id: editingId, name: name.trim(), phoneNumber: phone.trim() });
+      setContacts(updated);
+      setEditingId(null);
+    } else {
+      setContacts(await addContact({ name: name.trim(), phoneNumber: phone.trim() }));
+    }
+    setName('');
+    setPhone('');
+  };
+
+  const onStartEdit = (contact: Contact) => {
+    setEditingId(contact.id);
+    setName(contact.name);
+    setPhone(contact.phoneNumber);
+  };
+
+  const onCancelEdit = () => {
+    setEditingId(null);
     setName('');
     setPhone('');
   };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <Text style={styles.title}>Trusted Contacts</Text>
       <FlatList
         data={contacts}
@@ -30,17 +50,23 @@ export function ContactsScreen() {
         ListEmptyComponent={<Text style={styles.empty}>No contacts yet — add at least one below.</Text>}
         renderItem={({ item }) => (
           <View style={styles.row}>
-            <View>
+            <View style={styles.contactInfo}>
               <Text style={styles.name}>{item.name}</Text>
               <Text style={styles.phone}>{item.phoneNumber}</Text>
             </View>
-            <Pressable onPress={() => removeContact(item.id).then(setContacts)}>
-              <Text style={styles.remove}>Remove</Text>
-            </Pressable>
+            <View style={styles.actions}>
+              <Pressable onPress={() => onStartEdit(item)} style={styles.actionBtn}>
+                <Text style={styles.edit}>Edit</Text>
+              </Pressable>
+              <Pressable onPress={() => removeContact(item.id).then(setContacts)} style={styles.actionBtn}>
+                <Text style={styles.remove}>Remove</Text>
+              </Pressable>
+            </View>
           </View>
         )}
       />
       <View style={styles.form}>
+        <Text style={styles.formTitle}>{editingId ? 'Edit Contact' : 'Add New Contact'}</Text>
         <TextInput style={styles.input} placeholder="Name" placeholderTextColor="#8E8E93" value={name} onChangeText={setName} />
         <TextInput
           style={styles.input}
@@ -50,11 +76,18 @@ export function ContactsScreen() {
           onChangeText={setPhone}
           keyboardType="phone-pad"
         />
-        <Pressable style={styles.addButton} onPress={onAdd}>
-          <Text style={styles.addButtonText}>Add Contact</Text>
-        </Pressable>
+        <View style={styles.buttonRow}>
+          {editingId ? (
+            <Pressable style={styles.cancelButton} onPress={onCancelEdit}>
+              <Text style={styles.cancelButtonText}>Cancel</Text>
+            </Pressable>
+          ) : null}
+          <Pressable style={[styles.addButton, editingId ? { flex: 1 } : null]} onPress={onSave}>
+            <Text style={styles.addButtonText}>{editingId ? 'Save Changes' : 'Add Contact'}</Text>
+          </Pressable>
+        </View>
       </View>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -70,11 +103,19 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#1C1C1E',
   },
+  contactInfo: { flex: 1 },
   name: { color: 'white', fontSize: 16, fontWeight: '600' },
   phone: { color: '#8E8E93', fontSize: 14 },
+  actions: { flexDirection: 'row', gap: 12 },
+  actionBtn: { paddingVertical: 4, paddingHorizontal: 6 },
+  edit: { color: '#4A90E2', fontWeight: '600' },
   remove: { color: '#D7263D', fontWeight: '600' },
   form: { marginTop: 16, gap: 8 },
+  formTitle: { color: '#C7C7CC', fontSize: 14, fontWeight: '600', marginBottom: 4 },
   input: { borderWidth: 1, borderColor: '#3A3A3C', borderRadius: 8, padding: 12, color: 'white' },
+  buttonRow: { flexDirection: 'row', gap: 8 },
+  cancelButton: { borderWidth: 1, borderColor: '#3A3A3C', borderRadius: 8, padding: 14, alignItems: 'center', flex: 1 },
+  cancelButtonText: { color: '#C7C7CC', fontWeight: '600' },
   addButton: { backgroundColor: '#D7263D', borderRadius: 8, padding: 14, alignItems: 'center' },
   addButtonText: { color: 'white', fontWeight: '700' },
 });
