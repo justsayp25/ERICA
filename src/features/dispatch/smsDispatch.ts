@@ -3,6 +3,7 @@ import type { Contact } from '../contacts/contactsStorage';
 import type { LocationResult } from '../location/locationService';
 import { mapsLinkFor } from '../location/locationService';
 import { getSettings } from '../settings/settingsStorage';
+import { enqueueAndDispatch } from './queueProcessor';
 
 export interface DispatchResult {
   attempted: boolean;
@@ -16,8 +17,8 @@ interface DispatchParams {
 }
 
 /**
- * Phase 2 direct carrier SMS dispatch using native SilentSms module (android.telephony.SmsManager).
- * Dispatches silently in background IO threads with multipart support and delivery verification.
+ * Phase 2 direct carrier SMS dispatch using native SilentSms module (android.telephony.SmsManager)
+ * backed by persistent SQLite outbox queue, exponential backoff retries, and NetInfo connectivity flush.
  */
 export async function dispatchEmergencySms({ contacts, location, triggerSource }: DispatchParams): Promise<DispatchResult> {
   const recipients = contacts.map((c) => c.phoneNumber);
@@ -43,7 +44,8 @@ export async function dispatchEmergencySms({ contacts, location, triggerSource }
     `Time: ${new Date().toISOString()}`,
   ].join('\n');
 
-  await sendSilentSms(recipients, message);
+  const ceilingMs = settings.retryCeilingSeconds ? settings.retryCeilingSeconds * 1000 : undefined;
+  await enqueueAndDispatch(recipients, message, { ceilingMs });
   return { attempted: true, recipients };
 }
 
@@ -53,8 +55,15 @@ export async function dispatchSafeSms(contacts: Contact[]): Promise<DispatchResu
     return { attempted: false, recipients };
   }
 
-  await sendSilentSms(recipients, 'EMERGENCY RESOLVED\n\nThe user has marked themselves safe.');
+  const settings = await getSettings();
+  const ceilingMs = settings.retryCeilingSeconds ? settings.retryCeilingSeconds * 1000 : undefined;
+  await enqueueAndDispatch(
+    recipients,
+    'EMERGENCY RESOLVED\n\nThe user has marked themselves safe.',
+    { ceilingMs }
+  );
   return { attempted: true, recipients };
 }
 
 export { sendSilentSms, isAvailableAsync };
+

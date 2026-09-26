@@ -9,6 +9,7 @@ const DEFAULTS: Settings = { countdownSeconds: 10, userName: '', customMessage: 
 export function SettingsScreen() {
   const [settings, setSettings] = useState<Settings>(DEFAULTS);
   const [countdownText, setCountdownText] = useState('10');
+  const [retryCeilingText, setRetryCeilingText] = useState('60');
   const [saved, setSaved] = useState(false);
 
   useFocusEffect(
@@ -16,6 +17,7 @@ export function SettingsScreen() {
       getSettings().then((s) => {
         setSettings(s);
         setCountdownText(String(s.countdownSeconds));
+        setRetryCeilingText(String(s.retryCeilingSeconds ?? 60));
       });
     }, [])
   );
@@ -28,15 +30,26 @@ export function SettingsScreen() {
     }
   };
 
+  const onRetryCeilingChange = (text: string) => {
+    setRetryCeilingText(text);
+    const parsed = parseInt(text, 10);
+    if (!isNaN(parsed) && parsed > 0) {
+      setSettings((s) => ({ ...s, retryCeilingSeconds: parsed }));
+    }
+  };
+
   const onSave = async () => {
     const finalCountdown = Math.max(3, parseInt(countdownText, 10) || 10);
+    const finalRetryCeiling = Math.max(5, parseInt(retryCeilingText, 10) || 60);
     const toSave: Settings = {
       ...settings,
       countdownSeconds: finalCountdown,
+      retryCeilingSeconds: finalRetryCeiling,
     };
     await saveSettings(toSave);
     setSettings(toSave);
     setCountdownText(String(finalCountdown));
+    setRetryCeilingText(String(finalRetryCeiling));
     setSaved(true);
     setTimeout(() => setSaved(false), 1500);
   };
@@ -56,6 +69,17 @@ export function SettingsScreen() {
           placeholderTextColor="#8E8E93"
         />
         <Text style={styles.helperText}>Configurable countdown before emergency dispatch (min 3s).</Text>
+
+        <Text style={styles.label}>Retry backoff ceiling (seconds)</Text>
+        <TextInput
+          style={styles.input}
+          keyboardType="number-pad"
+          value={retryCeilingText}
+          onChangeText={onRetryCeilingChange}
+          placeholder="e.g. 60"
+          placeholderTextColor="#8E8E93"
+        />
+        <Text style={styles.helperText}>Maximum delay ceiling between retries during cellular dead zones (min 5s).</Text>
 
         <Text style={styles.label}>Your name (shown to contacts)</Text>
         <TextInput

@@ -4,6 +4,7 @@ export interface Settings {
   countdownSeconds: number;
   userName: string;
   customMessage: string;
+  retryCeilingSeconds?: number;
 }
 
 const STORAGE_KEY = '@erica/settings';
@@ -12,6 +13,7 @@ const DEFAULT_SETTINGS: Settings = {
   countdownSeconds: 10,
   userName: '',
   customMessage: '',
+  retryCeilingSeconds: 60,
 };
 
 export async function getSettings(): Promise<Settings> {
