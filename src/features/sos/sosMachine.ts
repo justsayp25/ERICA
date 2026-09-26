@@ -4,6 +4,13 @@ import { getSettings } from '../settings/settingsStorage';
 import { getCurrentLocation, type LocationResult } from '../location/locationService';
 import { dispatchEmergencySms, dispatchSafeSms } from '../dispatch/smsDispatch';
 import { appendHistoryEntry, resolveHistoryEntry } from '../history/historyStorage';
+import {
+  startEmergencyForegroundService,
+  stopEmergencyForegroundService,
+  updateEmergencyNotification,
+  acquireEmergencyWakeLock,
+  releaseEmergencyWakeLock,
+} from '../../../modules/foreground-service';
 
 export interface SosContext {
   triggerSource: string;
@@ -81,12 +88,48 @@ export const sosMachine = setup({
   guards: {
     countdownFinished: ({ context }: { context: SosContext }) => context.secondsRemaining <= 1,
   },
+  actions: {
+    startCountdownService: () => {
+      startEmergencyForegroundService({
+        title: 'EMERGENCY ARMED',
+        message: 'Countdown in progress. Tap I\'M SAFE to cancel.',
+      }).catch((err) => console.warn('[sosMachine] startCountdownService error:', err));
+    },
+    startDispatchingService: () => {
+      startEmergencyForegroundService({
+        title: 'EMERGENCY DISPATCHING',
+        message: 'Acquiring GPS and dispatching alert SMS...',
+      }).catch((err) => console.warn('[sosMachine] startDispatchingService error:', err));
+    },
+    updateActiveNotification: () => {
+      updateEmergencyNotification(
+        'EMERGENCY ACTIVE',
+        'Contacts alerted. Tap I\'M SAFE to stand down.'
+      ).catch((err) => console.warn('[sosMachine] updateActiveNotification error:', err));
+    },
+    stopService: () => {
+      stopEmergencyForegroundService().catch((err) =>
+        console.warn('[sosMachine] stopService error:', err)
+      );
+    },
+    acquireWakeLock: () => {
+      acquireEmergencyWakeLock().catch((err) =>
+        console.warn('[sosMachine] acquireWakeLock error:', err)
+      );
+    },
+    releaseWakeLock: () => {
+      releaseEmergencyWakeLock().catch((err) =>
+        console.warn('[sosMachine] releaseWakeLock error:', err)
+      );
+    },
+  },
 }).createMachine({
   id: 'sos',
   context: initialContext,
   initial: 'idle',
   states: {
     idle: {
+      entry: ['stopService', 'releaseWakeLock'],
       invoke: {
         src: 'loadSettings',
         onDone: {
@@ -113,9 +156,11 @@ export const sosMachine = setup({
       },
     },
     countdown: {
+      entry: 'startCountdownService',
       invoke: { src: 'countdownTicker' },
       on: {
         CANCEL: 'idle',
+        MARK_SAFE: 'idle',
         TICK: [
           { guard: 'countdownFinished', target: 'dispatching' },
           { actions: assign(({ context }) => ({ secondsRemaining: context.secondsRemaining - 1 })) },
@@ -123,28 +168,41 @@ export const sosMachine = setup({
       },
     },
     dispatching: {
-      entry: assign({
-        startedAt: () => Date.now(),
-        sessionId: () => `${Date.now()}`,
-        lastError: () => null,
-      }),
+      entry: [
+        'startDispatchingService',
+        'acquireWakeLock',
+        assign({
+          startedAt: () => Date.now(),
+          sessionId: () => `${Date.now()}`,
+          lastError: () => null,
+        }),
+      ],
+      exit: 'releaseWakeLock',
       invoke: {
         src: 'dispatchEmergency',
         input: ({ context }) => ({ context }),
         onDone: {
           target: 'active',
-          actions: assign(({ event }) => ({ location: event.output.location })),
+          actions: [
+            assign(({ event }) => ({ location: event.output.location })),
+            'updateActiveNotification',
+            'releaseWakeLock',
+          ],
         },
         onError: {
           target: 'active',
-          actions: assign({
-            lastError: ({ event }) =>
-              event.error instanceof Error ? event.error.message : String(event.error),
-          }),
+          actions: [
+            assign({
+              lastError: ({ event }) =>
+                event.error instanceof Error ? event.error.message : String(event.error),
+            }),
+            'releaseWakeLock',
+          ],
         },
       },
     },
     active: {
+      entry: 'releaseWakeLock',
       on: {
         MARK_SAFE: 'resolving',
         DISMISS: {
@@ -154,6 +212,8 @@ export const sosMachine = setup({
       },
     },
     resolving: {
+      entry: 'acquireWakeLock',
+      exit: 'releaseWakeLock',
       invoke: {
         src: 'dispatchSafe',
         input: ({ context }) => ({ context }),
