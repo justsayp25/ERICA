@@ -1,13 +1,23 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { useMachine } from '@xstate/react';
 import { sosMachine } from './sosMachine';
 import { getSettings } from '../settings/settingsStorage';
+import { addMarkSafeListener } from '../../../modules/foreground-service';
 
 export function SosScreen() {
   const [state, send] = useMachine(sosMachine);
+
+  useEffect(() => {
+    const sub = addMarkSafeListener(() => {
+      send({ type: 'MARK_SAFE' });
+    });
+    return () => {
+      sub.remove();
+    };
+  }, [send]);
 
   useFocusEffect(
     useCallback(() => {

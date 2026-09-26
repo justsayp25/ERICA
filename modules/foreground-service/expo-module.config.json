@@ -1,0 +1,9 @@
+{
+  "platforms": ["apple", "android", "web"],
+  "apple": {
+    "modules": ["ForegroundServiceModule"]
+  },
+  "android": {
+    "modules": ["expo.modules.foregroundservice.ForegroundServiceModule"]
+  }
+}
