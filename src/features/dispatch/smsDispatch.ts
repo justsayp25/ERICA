@@ -1,4 +1,4 @@
-import * as SMS from 'expo-sms';
+import { sendSilentSms, isAvailableAsync } from '../../../modules/silent-sms';
 import type { Contact } from '../contacts/contactsStorage';
 import type { LocationResult } from '../location/locationService';
 import { mapsLinkFor } from '../location/locationService';
@@ -15,13 +15,13 @@ interface DispatchParams {
   triggerSource: string;
 }
 
-// This composer-based send (expo-sms) requires a user tap — it cannot send
-// silently. That's a Phase 1 placeholder, not the final behavior: Phase 2
-// replaces this with a native module calling SmsManager directly for true
-// silent, no-touch dispatch. See docs/ROADMAP.md.
+/**
+ * Phase 2 direct carrier SMS dispatch using native SilentSms module (android.telephony.SmsManager).
+ * Dispatches silently in background IO threads with multipart support and delivery verification.
+ */
 export async function dispatchEmergencySms({ contacts, location, triggerSource }: DispatchParams): Promise<DispatchResult> {
   const recipients = contacts.map((c) => c.phoneNumber);
-  if (recipients.length === 0 || !(await SMS.isAvailableAsync())) {
+  if (recipients.length === 0 || !(await isAvailableAsync())) {
     return { attempted: false, recipients };
   }
 
@@ -43,16 +43,18 @@ export async function dispatchEmergencySms({ contacts, location, triggerSource }
     `Time: ${new Date().toISOString()}`,
   ].join('\n');
 
-  await SMS.sendSMSAsync(recipients, message);
+  await sendSilentSms(recipients, message);
   return { attempted: true, recipients };
 }
 
 export async function dispatchSafeSms(contacts: Contact[]): Promise<DispatchResult> {
   const recipients = contacts.map((c) => c.phoneNumber);
-  if (recipients.length === 0 || !(await SMS.isAvailableAsync())) {
+  if (recipients.length === 0 || !(await isAvailableAsync())) {
     return { attempted: false, recipients };
   }
 
-  await SMS.sendSMSAsync(recipients, 'EMERGENCY RESOLVED\n\nThe user has marked themselves safe.');
+  await sendSilentSms(recipients, 'EMERGENCY RESOLVED\n\nThe user has marked themselves safe.');
   return { attempted: true, recipients };
 }
+
+export { sendSilentSms, isAvailableAsync };
