@@ -3,10 +3,14 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const mockExpoUrl = pathToFileURL(path.resolve(process.cwd(), 'test/mockExpo.mjs')).href;
+const mockAsyncStorageUrl = pathToFileURL(path.resolve(process.cwd(), 'test/mockAsyncStorage.mjs')).href;
 
 export async function resolve(specifier, context, nextResolve) {
   if (specifier === 'expo' || specifier === 'expo-modules-core') {
     return nextResolve(mockExpoUrl, context);
+  }
+  if (specifier === '@react-native-async-storage/async-storage') {
+    return nextResolve(mockAsyncStorageUrl, context);
   }
 
   try {
