@@ -8,6 +8,7 @@ const ERICA_PERMISSIONS = [
   'android.permission.FOREGROUND_SERVICE_LOCATION',
   'android.permission.WAKE_LOCK',
   'android.permission.RECEIVE_BOOT_COMPLETED',
+  'android.permission.POST_NOTIFICATIONS',
 ];
 
 /**
