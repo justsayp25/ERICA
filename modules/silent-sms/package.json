@@ -1,0 +1,7 @@
+{
+  "name": "silent-sms",
+  "version": "0.1.0",
+  "description": "Silent background SMS dispatch native module for ERICA",
+  "main": "index.ts",
+  "types": "index.ts"
+}
