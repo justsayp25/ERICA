@@ -96,7 +96,7 @@ const liveLocation = fromCallback(() => {
 });
 
 const SMS_UNAVAILABLE_WARNING =
-  'SMS permission is missing or this device cannot send SMS right now. Your alert is queued and will send automatically once SMS is available.';
+  'ERICA cannot send texts right now (no SMS permission or no signal). Your alert is queued and will send automatically.';
 
 const dispatchEmergency = fromPromise(async ({ input }: { input: { context: SosContext } }): Promise<{
   location: LocationResult | null;
@@ -126,7 +126,6 @@ const dispatchEmergency = fromPromise(async ({ input }: { input: { context: SosC
   if (contactDecryptionFailed) {
     // Non-Negotiable Safety Law: Never crash or abort emergency when vault is locked/corrupted.
     // Acquire live GPS coordinates, maintain emergency state, and display verified guidance:
-    // "Contacts unavailable (vault locked) — Call Emergency Services (911)"
     try {
       await appendHistoryEntry({
         sessionId: context.sessionId as string,
@@ -140,7 +139,7 @@ const dispatchEmergency = fromPromise(async ({ input }: { input: { context: SosC
     }
 
     const fallbackError = new Error(
-      'Contacts unavailable (vault locked) — Call Emergency Services (911)'
+      'Your contacts could not be read, so no text was sent. Call emergency services (911).'
     );
     (fallbackError as any).location = location;
     throw fallbackError;
@@ -149,9 +148,9 @@ const dispatchEmergency = fromPromise(async ({ input }: { input: { context: SosC
   const result = await dispatchEmergencySms({ contacts, location, triggerSource: context.triggerSource });
   if (!result.attempted) {
     if (contacts.length === 0) {
-      throw new Error('No trusted contacts configured. Please add contacts in the Contacts tab first.');
+      throw new Error('You have no contacts yet. Add someone in the Contacts tab.');
     }
-    throw new Error('SMS service is unavailable on this device.');
+    throw new Error('This phone cannot send text messages.');
   }
 
   // The alert is already queued; a failed history write must not report the SOS as failed.
@@ -202,20 +201,20 @@ export const sosMachine = setup({
   actions: {
     startCountdownService: () => {
       startEmergencyForegroundService({
-        title: 'EMERGENCY ARMED',
-        message: 'Countdown in progress. Tap I\'M SAFE to cancel.',
+        title: 'SOS starting',
+        message: 'Your alert sends when the countdown ends. Tap I\'M SAFE to cancel.',
       }).catch((err) => console.warn('[sosMachine] startCountdownService error:', err));
     },
     startDispatchingService: () => {
       startEmergencyForegroundService({
-        title: 'EMERGENCY DISPATCHING',
-        message: 'Acquiring GPS and dispatching alert SMS...',
+        title: 'Sending your alert',
+        message: 'Getting your location and texting your contacts.',
       }).catch((err) => console.warn('[sosMachine] startDispatchingService error:', err));
     },
     updateActiveNotification: () => {
       updateEmergencyNotification(
-        'EMERGENCY ACTIVE',
-        'Contacts alerted. Tap I\'M SAFE to stand down.'
+        'SOS active',
+        'Your contacts were alerted. Tap I\'M SAFE when you are safe.'
       ).catch((err) => console.warn('[sosMachine] updateActiveNotification error:', err));
     },
     stopService: () => {

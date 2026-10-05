@@ -74,8 +74,8 @@ class PhysicalTriggersModule : Module() {
               val serviceIntent = Intent().apply {
                 setClassName(ctx.packageName, "expo.modules.foregroundservice.EmergencyForegroundService")
                 action = "expo.modules.foregroundservice.ACTION_START"
-                putExtra("extra_title", "Emergency Alert Active")
-                putExtra("extra_message", "Emergency triggered via $source")
+                putExtra("extra_title", "SOS starting")
+                putExtra("extra_message", "Started with: $source. Open ERICA to cancel.")
               }
               if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
                 ctx.startForegroundService(serviceIntent)

@@ -410,7 +410,7 @@ test('SOS Emergency Fallback: Contact decryption failure acquires live GPS, main
     // 3. Safety Law: Display verified emergency guidance on screen
     assert.strictEqual(
       snapshot.context.lastError,
-      'Contacts unavailable (vault locked) — Call Emergency Services (911)',
+      'Your contacts could not be read, so no text was sent. Call emergency services (911).',
       'Must display exact verified emergency guidance'
     );
 

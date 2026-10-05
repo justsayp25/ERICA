@@ -3,7 +3,8 @@ import { View, Text, Pressable, StyleSheet, Platform, Linking, Vibration } from 
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSosService } from './sosMachine';
-import { getSettings } from '../settings/settingsStorage';
+import { getSettings, type AlertMode } from '../settings/settingsStorage';
+import { getContacts } from '../contacts/contactsStorage';
 import { requestEmergencyPermissions } from '../permissions/emergencyPermissions';
 import { addMarkSafeListener } from '../../../modules/foreground-service';
 
@@ -15,6 +16,8 @@ export function SosScreen() {
   const isIdle = state.matches('idle');
   const [smsPermissionMissing, setSmsPermissionMissing] = useState(false);
   const [holdToTrigger, setHoldToTrigger] = useState(false);
+  const [alertMode, setAlertMode] = useState<AlertMode>('loud');
+  const [contactCount, setContactCount] = useState<number | null>(null);
 
   // Physical panic triggers are handled once, globally, in App.tsx. Listening here as well
   // sent every trigger to the machine twice.
@@ -49,8 +52,12 @@ export function SosScreen() {
       if (isIdle) {
         getSettings().then((s) => {
           setHoldToTrigger(Boolean(s.holdToTrigger));
+          setAlertMode(s.alertMode ?? 'loud');
           send({ type: 'SETTINGS_UPDATED', countdownSeconds: s.countdownSeconds });
         });
+        getContacts()
+          .then((c) => setContactCount(c.length))
+          .catch(() => setContactCount(null));
       }
     }, [isIdle, send])
   );
@@ -76,13 +83,22 @@ export function SosScreen() {
           </Pressable>
           <Text style={styles.subtext}>
             {holdToTrigger
-              ? `Hold the button for ${HOLD_TO_TRIGGER_MS / 1000} seconds to start an emergency alert (${state.context.countdownTotal}s countdown)`
-              : `Tap to initiate emergency alert (${state.context.countdownTotal}s countdown)`}
+              ? `Hold the button for ${HOLD_TO_TRIGGER_MS / 1000} seconds to send an alert.`
+              : 'Tap the button to send an alert.'}{' '}
+            You have {state.context.countdownTotal} seconds to cancel.
           </Text>
+          {contactCount === 0 ? (
+            <Text style={styles.warning}>You have no contacts yet. Add someone in the Contacts tab.</Text>
+          ) : (
+            <Text style={styles.status}>
+              {alertMode === 'loud' ? 'Loud mode' : 'Silent mode'}
+              {contactCount !== null ? ` · ${contactCount} ${contactCount === 1 ? 'contact' : 'contacts'}` : ''}
+            </Text>
+          )}
           {smsPermissionMissing ? (
             <Pressable style={styles.permissionBanner} onPress={onGrantSmsPermission}>
               <Text style={styles.permissionBannerText}>
-                SMS permission is off, so alerts cannot reach your contacts. Tap to grant it.
+                ERICA cannot send texts yet. Tap here to allow SMS.
               </Text>
             </Pressable>
           ) : null}
@@ -92,9 +108,9 @@ export function SosScreen() {
       {state.matches('countdown') && (
         <View style={styles.centered}>
           <Text style={styles.countdown}>{state.context.secondsRemaining}</Text>
-          <Text style={styles.hint}>Alerting your contacts…</Text>
+          <Text style={styles.hint}>Your alert sends when the countdown ends.</Text>
           <Pressable style={styles.cancelButton} onPress={() => send({ type: 'CANCEL' })}>
-            <Text style={styles.cancelText}>CANCEL</Text>
+            <Text style={styles.cancelText}>Cancel</Text>
           </Pressable>
         </View>
       )}
@@ -102,16 +118,18 @@ export function SosScreen() {
       {(state.matches('dispatching') || state.matches('resolving')) && (
         <View style={styles.centered}>
           <Text style={styles.hint}>
-            {state.matches('dispatching') ? 'Getting your location and alerting contacts…' : 'Marking you safe…'}
+            {state.matches('dispatching')
+              ? 'Getting your location and texting your contacts…'
+              : 'Letting your contacts know you are safe…'}
           </Text>
         </View>
       )}
 
       {state.matches('active') && (
         <View style={styles.centered}>
-          <Text style={styles.activeTitle}>Emergency active</Text>
+          <Text style={styles.activeTitle}>SOS active</Text>
           <Text style={styles.hint}>
-            {state.context.lastError ? 'Alert dispatch issue detected:' : 'Your contacts have been alerted.'}
+            {state.context.lastError ? 'There was a problem sending your alert:' : 'Your contacts were alerted.'}
           </Text>
           {state.context.lastError ? <Text style={styles.errorHint}>{state.context.lastError}</Text> : null}
           <View style={styles.activeButtonRow}>
@@ -121,7 +139,7 @@ export function SosScreen() {
               </Pressable>
             ) : null}
             <Pressable style={styles.safeButton} onPress={() => send({ type: 'MARK_SAFE' })}>
-              <Text style={styles.safeButtonText}>I'M SAFE NOW</Text>
+              <Text style={styles.safeButtonText}>I'M SAFE</Text>
             </Pressable>
           </View>
         </View>
@@ -133,7 +151,7 @@ export function SosScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: '#0B0B0F' },
   idleContainer: { alignItems: 'center', gap: 20 },
-  subtext: { color: '#8E8E93', fontSize: 14, textAlign: 'center', maxWidth: 260 },
+  subtext: { color: '#C7C7CC', fontSize: 15, textAlign: 'center', maxWidth: 300, lineHeight: 21 },
   centered: { alignItems: 'center', gap: 16, paddingHorizontal: 24 },
   sosButton: { width: 160, height: 160, borderRadius: 80, backgroundColor: '#D7263D', alignItems: 'center', justifyContent: 'center' },
   sosButtonText: { color: 'white', fontSize: 32, fontWeight: '700' },
@@ -148,6 +166,8 @@ const styles = StyleSheet.create({
   dismissButtonText: { color: '#C7C7CC', fontWeight: '600' },
   safeButton: { backgroundColor: '#2E7D32', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 24 },
   safeButtonText: { color: 'white', fontWeight: '700' },
+  status: { color: '#8E8E93', fontSize: 13 },
+  warning: { color: '#FF9F43', fontSize: 13, textAlign: 'center', maxWidth: 280 },
   permissionBanner: { borderWidth: 1, borderColor: '#FF9F43', borderRadius: 12, padding: 12, maxWidth: 300 },
   permissionBannerText: { color: '#FF9F43', fontSize: 13, textAlign: 'center' },
 });

@@ -314,7 +314,7 @@ export function SettingsScreen() {
                     Linking.sendIntent('android.settings.ACCESSIBILITY_SETTINGS').catch(() => Linking.openSettings())
                   }
                 >
-                  <Text style={styles.secondaryButtonText}>Turn on ERICA in Accessibility (needed)</Text>
+                  <Text style={styles.secondaryButtonText}>Open Accessibility settings to turn on ERICA</Text>
                 </Pressable>
               ) : null}
               <Pressable style={styles.secondaryButton} onPress={onPracticePress}>
@@ -338,7 +338,7 @@ export function SettingsScreen() {
           />
           <Text style={styles.hint}>
             {loud
-              ? 'Loud: siren, flashing light and vibration to draw attention.'
+              ? 'Loud: siren, flashing light and vibration start as soon as you press SOS.'
               : 'Silent: no sound, light or vibration. Your contacts still get the text.'}
           </Text>
           {loud ? (

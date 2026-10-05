@@ -140,8 +140,8 @@ class EmergencyForegroundService : Service() {
       }
 
       ACTION_START, ACTION_UPDATE -> {
-        val title = intent?.getStringExtra(EXTRA_TITLE) ?: "Emergency Alert Active"
-        val message = intent?.getStringExtra(EXTRA_MESSAGE) ?: "Emergency protocol active. Tap I'M SAFE to stand down."
+        val title = intent?.getStringExtra(EXTRA_TITLE) ?: "SOS active"
+        val message = intent?.getStringExtra(EXTRA_MESSAGE) ?: "Tap I'M SAFE when you are safe."
         val notification = buildNotification(title, message)
 
         if (!isServiceRunning) {
@@ -261,6 +261,8 @@ class EmergencyForegroundService : Service() {
     return NotificationCompat.Builder(this, CHANNEL_ID)
       .setContentTitle(title)
       .setContentText(message)
+      // Collapsed notifications show one line and cut longer text off; BigTextStyle shows it all.
+      .setStyle(NotificationCompat.BigTextStyle().bigText(message))
       .setSmallIcon(iconRes)
       .setOngoing(true)
       .setAutoCancel(false)

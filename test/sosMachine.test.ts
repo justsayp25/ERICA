@@ -32,8 +32,8 @@ test('1. ForegroundService: Transitions into countdown starts service with persi
 
     assert.strictEqual(snapshot.value, 'countdown');
     assert.strictEqual(startCalled, true, 'startService should be called when entering countdown');
-    assert.ok(startedTitle.includes('EMERGENCY ARMED'), 'Title should reflect armed countdown state');
-    assert.ok(startedMessage.includes('Countdown in progress'), 'Message should indicate countdown');
+    assert.ok(startedTitle.includes('SOS starting'), 'Title should reflect the countdown state');
+    assert.ok(startedMessage.includes('countdown'), 'Message should mention the countdown');
   } finally {
     actor.stop();
     resetForegroundServiceOverrides();
@@ -112,7 +112,7 @@ test('4. WakeLock & Dispatching: Acquires temporary partial WakeLock during acti
       return true;
     },
     updateNotification: async (title, message) => {
-      if (title.includes('ACTIVE')) {
+      if (title === 'SOS active') {
         notificationUpdated = true;
       }
       return true;
@@ -145,7 +145,7 @@ test('4. WakeLock & Dispatching: Acquires temporary partial WakeLock during acti
     assert.strictEqual(snapshot.value, 'active');
     assert.strictEqual(wakeLockAcquired, true, 'WakeLock must be acquired on dispatching entry');
     assert.strictEqual(wakeLockReleased, true, 'WakeLock must be released immediately upon entering active to conserve battery');
-    assert.strictEqual(notificationUpdated, true, 'Persistent notification should update to EMERGENCY ACTIVE');
+    assert.strictEqual(notificationUpdated, true, 'Persistent notification should update to "SOS active"');
   } finally {
     actor.stop();
     resetForegroundServiceOverrides();
