@@ -7,6 +7,7 @@ import {
   captureConsentGatedPhotos,
   type DeterrenceStatus,
 } from '../../../modules/deterrence-evidence';
+import { startAlertVibration, stopAlertVibration } from './vibration';
 import { appendEvidenceRecord, appendEvidenceRecords, type EvidenceRecord } from './evidenceStorage';
 
 let activeSessionId: string | null = null;
@@ -108,12 +109,20 @@ async function runStart(sessionId: string): Promise<void> {
   try {
     const settings = await getSettings();
 
-    // 1. Off-thread Deterrence: Siren & Strobe
-    if (settings.deterrenceSirenEnabled || settings.deterrenceStrobeEnabled) {
+    // Silent mode runs no siren, strobe or vibration at all, whatever the switches say.
+    const loud = (settings.alertMode ?? 'loud') === 'loud';
+    const siren = loud && Boolean(settings.deterrenceSirenEnabled);
+    const strobe = loud && Boolean(settings.deterrenceStrobeEnabled);
+
+    // 1. Off-thread Deterrence: Siren & Strobe, plus vibration
+    if (loud && settings.vibrationEnabled) {
+      startAlertVibration();
+    }
+    if (siren || strobe) {
       nativeStarts.push(
         startDeterrence({
-          sirenEnabled: Boolean(settings.deterrenceSirenEnabled),
-          strobeEnabled: Boolean(settings.deterrenceStrobeEnabled),
+          sirenEnabled: siren,
+          strobeEnabled: strobe,
           respectSilentMode: settings.respectSilentMode ?? true,
         })
           .then((status) => {
@@ -181,6 +190,9 @@ export function stopEmergencyDeterrenceAndEvidence(): Promise<void> {
   }
   stopRequested = true;
   clearSegmentTimer();
+  // Synchronous on purpose: the buzzing must end the moment the user taps I'M SAFE, not after
+  // the awaited native teardown below.
+  stopAlertVibration();
   const stop = runStop().finally(() => {
     if (pendingStop === stop) pendingStop = null;
   });
@@ -195,6 +207,7 @@ async function runStop(): Promise<void> {
     await pendingStart;
   }
   clearSegmentTimer(); // a start that finished just now may have armed it
+  stopAlertVibration(); // ...or started the vibration
   if (pendingRotation) {
     await pendingRotation;
   }

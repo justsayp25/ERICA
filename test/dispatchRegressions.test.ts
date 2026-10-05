@@ -157,11 +157,12 @@ test('SOS: with SMS unavailable the machine still reaches active, queues the ale
 });
 
 test('alert text: no link, GSM-7 only, and one SMS segment in the worst case', () => {
+  const now = new Date(2026, 9, 4, 7, 5);
   const message = composeEmergencyMessage(
     'The user may be in danger.',
-    { latitude: -89.123456789, longitude: -179.987654321, accuracy: 1234.567, timestamp: 0 },
+    { latitude: -89.123456789, longitude: -179.987654321, accuracy: 1234.567, timestamp: now.getTime() },
     'Duress PIN (Silent SOS)',
-    new Date(2026, 9, 4, 7, 5)
+    now
   );
   assert.ok(!/https?:\/\/|www\.|maps\./i.test(message), `carriers drop SMS with links: ${message}`);
   assert.ok(/^[A-Za-z0-9 .,:()'-]*$/.test(message), `non-GSM-7 character would cut the limit to 70: ${message}`);

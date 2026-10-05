@@ -42,6 +42,19 @@ export class TextInput {}
 export class ScrollView {}
 export class Switch {}
 
+export const Vibration = {
+  _calls: [],
+  vibrate(pattern, repeat) {
+    this._calls.push({ type: 'vibrate', pattern, repeat });
+  },
+  cancel() {
+    this._calls.push({ type: 'cancel' });
+  },
+  _reset() {
+    this._calls = [];
+  },
+};
+
 export const Alert = {
   alert: (title, message, buttons) => {},
 };
@@ -54,6 +67,7 @@ export const TurboModuleRegistry = {
 };
 
 export default {
+  Vibration,
   AppState,
   StyleSheet,
   Platform,

@@ -4,7 +4,7 @@ import { useSelector } from '@xstate/react';
 import { getContacts } from '../contacts/contactsStorage';
 import { getSettings } from '../settings/settingsStorage';
 import { getCurrentLocation, type LocationResult } from '../location/locationService';
-import { dispatchEmergencySms, dispatchSafeSms } from '../dispatch/smsDispatch';
+import { dispatchEmergencySms, dispatchSafeSms, dispatchLocationUpdateSms } from '../dispatch/smsDispatch';
 import { appendHistoryEntry, resolveHistoryEntry } from '../history/historyStorage';
 import {
   startEmergencyForegroundService,
@@ -55,6 +55,43 @@ const countdownTicker = fromCallback(({ sendBack }) => {
 });
 
 const loadSettings = fromPromise(async () => getSettings());
+
+/**
+ * Live location: while the alert is active, text the contacts a fresh position every
+ * `liveLocationIntervalSeconds` (0 = off). It is an invoked actor on the `active` state, so
+ * leaving that state (I'M SAFE, dismiss) stops it with the rest of the emergency (LAWS.md
+ * Law 4); `cancelled` also drops an update that was still in flight at that moment.
+ */
+const liveLocation = fromCallback(() => {
+  let cancelled = false;
+  let timer: ReturnType<typeof setInterval> | null = null;
+
+  const sendUpdate = async () => {
+    try {
+      const contacts = await getContacts();
+      const location = await getCurrentLocation();
+      if (cancelled || !location || contacts.length === 0) return;
+      await dispatchLocationUpdateSms(contacts, location);
+    } catch (err) {
+      console.warn('[sosMachine] Live location update failed:', err);
+    }
+  };
+
+  getSettings()
+    .then((settings) => {
+      const seconds = settings.liveLocationIntervalSeconds ?? 0;
+      if (cancelled || !(seconds > 0)) return;
+      timer = setInterval(() => {
+        sendUpdate();
+      }, seconds * 1000);
+    })
+    .catch((err) => console.warn('[sosMachine] Live location settings read failed:', err));
+
+  return () => {
+    cancelled = true;
+    if (timer) clearInterval(timer);
+  };
+});
 
 const SMS_UNAVAILABLE_WARNING =
   'SMS permission is missing or this device cannot send SMS right now. Your alert is queued and will send automatically once SMS is available.';
@@ -156,7 +193,7 @@ export const sosMachine = setup({
     context: SosContext;
     events: SosEvent;
   },
-  actors: { countdownTicker, loadSettings, dispatchEmergency, dispatchSafe },
+  actors: { countdownTicker, loadSettings, liveLocation, dispatchEmergency, dispatchSafe },
   guards: {
     countdownFinished: ({ context }: { context: SosContext }) => context.secondsRemaining <= 1,
   },
@@ -297,6 +334,7 @@ export const sosMachine = setup({
     },
     active: {
       entry: 'releaseWakeLock',
+      invoke: { src: 'liveLocation' },
       on: {
         MARK_SAFE: 'resolving',
         DISMISS: {

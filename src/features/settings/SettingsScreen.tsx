@@ -2,7 +2,8 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, TextInput, Pressable, StyleSheet, ScrollView, Switch, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
-import { getSettings, saveSettings, DEFAULT_SETTINGS, type Settings } from './settingsStorage';
+import { getSettings, saveSettings, DEFAULT_SETTINGS, type AlertMode, type Settings } from './settingsStorage';
+import { startAlertVibration, stopAlertVibration } from '../evidence/vibration';
 import { requestEvidencePermission } from '../permissions/emergencyPermissions';
 import {
   isPinConfigured,
@@ -157,6 +158,10 @@ export function SettingsScreen() {
   const [sirenEnabled, setSirenEnabled] = useState(false);
   const [strobeEnabled, setStrobeEnabled] = useState(false);
   const [respectSilentMode, setRespectSilentMode] = useState(true);
+  const [alertMode, setAlertMode] = useState<AlertMode>('loud');
+  const [vibrationEnabled, setVibrationEnabled] = useState(true);
+  const [liveLocationInterval, setLiveLocationInterval] = useState(0);
+  const [holdToTrigger, setHoldToTrigger] = useState(false);
   const [isDeterrenceTesting, setIsDeterrenceTesting] = useState(false);
   const [deterrenceTestFeedback, setDeterrenceTestFeedback] = useState<string | null>(null);
 
@@ -188,6 +193,10 @@ export function SettingsScreen() {
         setSirenEnabled(Boolean(s.deterrenceSirenEnabled));
         setStrobeEnabled(Boolean(s.deterrenceStrobeEnabled));
         setRespectSilentMode(s.respectSilentMode ?? true);
+        setAlertMode(s.alertMode ?? 'loud');
+        setVibrationEnabled(s.vibrationEnabled ?? true);
+        setLiveLocationInterval(s.liveLocationIntervalSeconds ?? 0);
+        setHoldToTrigger(Boolean(s.holdToTrigger));
         setAudioConsentEnabled(Boolean(s.evidenceAudioConsentEnabled));
         setPhotoConsentEnabled(Boolean(s.evidencePhotoConsentEnabled));
         setDualCameraEnabled(s.evidenceDualCamera ?? true);
@@ -514,6 +523,10 @@ export function SettingsScreen() {
       deterrenceSirenEnabled: sirenEnabled,
       deterrenceStrobeEnabled: strobeEnabled,
       respectSilentMode,
+      alertMode,
+      vibrationEnabled,
+      liveLocationIntervalSeconds: liveLocationInterval,
+      holdToTrigger,
       evidenceAudioConsentEnabled: audioConsentEnabled,
       evidencePhotoConsentEnabled: photoConsentEnabled,
       evidenceDualCamera: dualCameraEnabled,
@@ -578,6 +591,10 @@ export function SettingsScreen() {
     sirenEnabled,
     strobeEnabled,
     respectSilentMode,
+    alertMode,
+    vibrationEnabled,
+    liveLocationInterval,
+    holdToTrigger,
     audioConsentEnabled,
     photoConsentEnabled,
     dualCameraEnabled,
@@ -585,6 +602,7 @@ export function SettingsScreen() {
 
   const handleTestDeterrence = async () => {
     if (isDeterrenceTesting) {
+      stopAlertVibration();
       await stopDeterrence().catch(() => {});
       setIsDeterrenceTesting(false);
       setDeterrenceTestFeedback('Test stopped.');
@@ -592,8 +610,13 @@ export function SettingsScreen() {
       return;
     }
 
-    if (!sirenEnabled && !strobeEnabled) {
-      setDeterrenceTestFeedback('Enable Siren or Strobe first to test.');
+    if (alertMode === 'silent') {
+      setDeterrenceTestFeedback('Silent mode is on: no siren, light or vibration will run. Switch to Loud to test.');
+      setTimeout(() => setDeterrenceTestFeedback(null), 3500);
+      return;
+    }
+    if (!sirenEnabled && !strobeEnabled && !vibrationEnabled) {
+      setDeterrenceTestFeedback('Turn on Siren, Strobe or Vibration first to test.');
       setTimeout(() => setDeterrenceTestFeedback(null), 3000);
       return;
     }
@@ -601,23 +624,25 @@ export function SettingsScreen() {
     setIsDeterrenceTesting(true);
     setDeterrenceTestFeedback('Testing deterrence for 3s (no emergency dispatch)...');
     try {
-      const status = await startDeterrence({
-        sirenEnabled,
-        strobeEnabled,
-        respectSilentMode,
-      });
+      if (vibrationEnabled) startAlertVibration();
+      const status =
+        sirenEnabled || strobeEnabled
+          ? await startDeterrence({ sirenEnabled, strobeEnabled, respectSilentMode })
+          : { suppressedBySilentMode: false };
 
       if (status.suppressedBySilentMode) {
         setDeterrenceTestFeedback('Siren suppressed (device in silent/vibrate mode). Strobe active.');
       }
 
       setTimeout(async () => {
+        stopAlertVibration();
         await stopDeterrence().catch(() => {});
         setIsDeterrenceTesting(false);
         setDeterrenceTestFeedback('✓ Deterrence test completed cleanly (stopped).');
         setTimeout(() => setDeterrenceTestFeedback(null), 3000);
       }, 3000);
     } catch {
+      stopAlertVibration();
       setIsDeterrenceTesting(false);
       setDeterrenceTestFeedback('Deterrence test failed.');
       setTimeout(() => setDeterrenceTestFeedback(null), 3000);
@@ -1300,12 +1325,88 @@ export function SettingsScreen() {
           </View>
         </View>
 
+        {/* Section: How the SOS button and live location behave */}
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionHeader}>SOS Button & Live Location</Text>
+
+          <View style={styles.subSection}>
+            <View style={styles.switchRow}>
+              <View style={styles.switchLabelContainer}>
+                <Text style={styles.triggerTitle}>Hold to Trigger</Text>
+                <Text style={styles.triggerSubtitle}>
+                  Hold the SOS button for 1.5 seconds instead of tapping it, so a pocket or bag press cannot start an alert.
+                </Text>
+              </View>
+              <Switch
+                value={holdToTrigger}
+                onValueChange={setHoldToTrigger}
+                trackColor={{ false: '#3A3A3C', true: '#D7263D' }}
+                thumbColor="#FFFFFF"
+              />
+            </View>
+          </View>
+
+          <View style={styles.subSection}>
+            <Text style={styles.triggerTitle}>Live Location Updates</Text>
+            <Text style={styles.triggerSubtitle}>
+              While an alert is active, text your contacts a fresh location this often. Each update is one SMS per
+              contact. Stops when you tap I'M SAFE.
+            </Text>
+            <View style={styles.timeoutOptionsRow}>
+              {[
+                { label: 'Off', value: 0 },
+                { label: '1 min', value: 60 },
+                { label: '2 min', value: 120 },
+                { label: '5 min', value: 300 },
+                { label: '10 min', value: 600 },
+              ].map((opt) => (
+                <Pressable
+                  key={opt.value}
+                  style={[styles.timeoutOptionButton, liveLocationInterval === opt.value && styles.timeoutOptionActive]}
+                  onPress={() => setLiveLocationInterval(opt.value)}
+                >
+                  <Text
+                    style={[styles.timeoutOptionText, liveLocationInterval === opt.value && styles.timeoutOptionTextActive]}
+                  >
+                    {opt.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        </View>
+
         {/* Section: Deterrence & Emergency Alarms (Phase 4) */}
         <View style={styles.sectionCard}>
           <Text style={styles.sectionHeader}>Deterrence & Emergency Alarms</Text>
           <Text style={styles.helperText}>
             Acoustic and visual deterrence activated during active emergency alerts. All deterrence routines run off the main thread.
           </Text>
+
+          {/* Alert mode */}
+          <View style={styles.subSection}>
+            <Text style={styles.triggerTitle}>Alert Mode</Text>
+            <Text style={styles.triggerSubtitle}>
+              Loud: siren, flashing light and vibration (each can be switched off below). Silent: none of them, only
+              the text alert and any evidence you consented to.
+            </Text>
+            <View style={styles.timeoutOptionsRow}>
+              {([
+                { label: 'Loud', value: 'loud' },
+                { label: 'Silent', value: 'silent' },
+              ] as { label: string; value: AlertMode }[]).map((opt) => (
+                <Pressable
+                  key={opt.value}
+                  style={[styles.timeoutOptionButton, alertMode === opt.value && styles.timeoutOptionActive]}
+                  onPress={() => setAlertMode(opt.value)}
+                >
+                  <Text style={[styles.timeoutOptionText, alertMode === opt.value && styles.timeoutOptionTextActive]}>
+                    {opt.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
 
           {/* Siren Switch */}
           <View style={styles.subSection}>
@@ -1341,6 +1442,23 @@ export function SettingsScreen() {
                   setStrobeEnabled(val);
                   setSettings((s) => ({ ...s, deterrenceStrobeEnabled: val }));
                 }}
+                trackColor={{ false: '#3A3A3C', true: '#D7263D' }}
+                thumbColor="#FFFFFF"
+              />
+            </View>
+
+            {/* Vibration Switch */}
+            <View style={styles.switchRow}>
+              <View style={styles.switchLabelContainer}>
+                <Text style={styles.triggerTitle}>Vibration</Text>
+                <Text style={styles.triggerSubtitle}>
+                  Repeating buzz while the alert is active. Android can limit vibration from an app in the background,
+                  so treat it as an extra, not the main signal.
+                </Text>
+              </View>
+              <Switch
+                value={vibrationEnabled}
+                onValueChange={setVibrationEnabled}
                 trackColor={{ false: '#3A3A3C', true: '#D7263D' }}
                 thumbColor="#FFFFFF"
               />

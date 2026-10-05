@@ -60,12 +60,34 @@ export function composeEmergencyMessage(
   triggerSource: string,
   now: Date
 ): string {
-  const where = location
-    ? `Location: ${location.latitude.toFixed(5)},${location.longitude.toFixed(5)}` +
-      (location.accuracy != null ? ` (accuracy ${Math.round(location.accuracy)}m)` : '')
-    : 'Location: unavailable';
-  const time = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-  return `EMERGENCY ALERT: ${body} ${where}. Triggered via: ${triggerSource}. ${time}`;
+  return `EMERGENCY ALERT: ${body} ${locationText(location, now)}. Triggered via: ${triggerSource}. ${clockText(now)}`;
+}
+
+/** Follow-up position sent at intervals while an alert stays active (live location). */
+export function composeLocationUpdateMessage(location: LocationResult, now: Date): string {
+  return `LOCATION UPDATE: ${locationText(location, now).replace('Location: ', '')}. ${clockText(now)}`;
+}
+
+function clockText(now: Date): string {
+  return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+}
+
+/** A fix older than this is labelled with its age so an old position is not read as current. */
+const STALE_FIX_MS = 2 * 60_000;
+
+function locationText(location: LocationResult | null, now: Date): string {
+  if (!location) return 'Location: unavailable';
+  const details: string[] = [];
+  if (location.accuracy != null) details.push(`accuracy ${Math.round(location.accuracy)}m`);
+  const ageMs = now.getTime() - location.timestamp;
+  if (ageMs > STALE_FIX_MS) {
+    const minutes = Math.round(ageMs / 60_000);
+    details.push(minutes >= 120 ? `${Math.min(99, Math.round(minutes / 60))}h old` : `${minutes}m old`);
+  }
+  return (
+    `Location: ${location.latitude.toFixed(5)},${location.longitude.toFixed(5)}` +
+    (details.length ? ` (${details.join(', ')})` : '')
+  );
 }
 
 /**
@@ -113,6 +135,15 @@ export async function dispatchEmergencySms({ contacts, location, triggerSource }
   }
 
   return { attempted: false, recipients };
+}
+
+export async function dispatchLocationUpdateSms(contacts: Contact[], location: LocationResult): Promise<void> {
+  const recipients = contacts.map((c) => c.phoneNumber);
+  if (recipients.length === 0) return;
+  const settings = await getSettings();
+  const ceilingMs = settings.retryCeilingSeconds ? settings.retryCeilingSeconds * 1000 : undefined;
+  // Same durable outbox as the alert itself (LAWS.md Law 2).
+  await enqueueAndDispatch(recipients, composeLocationUpdateMessage(location, new Date()), { ceilingMs });
 }
 
 export async function dispatchSafeSms(contacts: Contact[]): Promise<DispatchResult> {

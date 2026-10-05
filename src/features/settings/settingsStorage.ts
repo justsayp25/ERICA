@@ -1,5 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+export type AlertMode = 'loud' | 'silent';
+
 export interface Settings {
   countdownSeconds: number;
   userName: string;
@@ -24,10 +26,19 @@ export interface Settings {
   duressSilentSosEnabled?: boolean;
   decoyContactsType?: 'mock' | 'empty';
 
-  // Phase 4 Deterrence & Alarms (Strict Privacy Defaults: OFF by default)
+  // Deterrence & Alarms. 'loud' runs the siren, strobe and vibration switched on below;
+  // 'silent' runs none of them (alert and consented evidence only).
+  alertMode?: AlertMode;
   deterrenceSirenEnabled?: boolean;
   deterrenceStrobeEnabled?: boolean;
+  vibrationEnabled?: boolean;
   respectSilentMode?: boolean;
+
+  // Parity features
+  /** Re-send the current position by SMS this often while an alert is active. 0 = off. */
+  liveLocationIntervalSeconds?: number;
+  /** Require holding the SOS button instead of a single tap. */
+  holdToTrigger?: boolean;
 
   // Phase 4 Evidence Capture Consent Gates (Strict Consent Required: OFF by default)
   evidenceAudioConsentEnabled?: boolean;
@@ -61,10 +72,16 @@ export const DEFAULT_SETTINGS: Settings = {
   duressSilentSosEnabled: false,
   decoyContactsType: 'mock',
 
-  // Phase 4 Defaults: Strict Privacy & Safety (All OFF by default, Respect Silent Mode ON)
-  deterrenceSirenEnabled: false,
-  deterrenceStrobeEnabled: false,
+  // Loud by default (siren, flashing light, vibration); evidence capture below still needs
+  // explicit consent. Respect Silent Mode stays ON so a phone set to silent/vibrate does not
+  // sound the siren.
+  alertMode: 'loud',
+  deterrenceSirenEnabled: true,
+  deterrenceStrobeEnabled: true,
+  vibrationEnabled: true,
   respectSilentMode: true,
+  liveLocationIntervalSeconds: 0,
+  holdToTrigger: false,
   evidenceAudioConsentEnabled: false,
   evidencePhotoConsentEnabled: false,
   evidenceDualCamera: true,

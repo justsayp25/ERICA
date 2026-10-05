@@ -153,5 +153,14 @@ Not planned: end-to-end cloud sync (conflicts with Law 5, SMS-only transmission)
 OS (a separate project). Home-screen widgets and multi-language support belong with the
 Phase 6 polish work.
 
+*Status (2026-10-05):* started ahead of Phases 6–8 at the project owner's request, using only
+what needs no new dependency or native-bridge change. Implemented: 1 (hold to trigger, setting,
+off by default), 2 (Loud/Silent mode with siren, strobe and vibration; loud by default),
+3 (live location updates by SMS, off by default, stop when the emergency ends). Vibration is
+plain JS and Android may limit it for a backgrounded app; a native, alarm-usage version would
+need a bridge change. Not started: 4 (needs `CALL_PHONE` and a bridge change), 5 (Android does not
+deliver the power key to accessibility key filters, so this needs a different approach), 6
+(approval pending). Contact import would need `expo-contacts`, a new dependency.
+
 **Done when:** each item above works on a reference Android device, has tests, and passes
 `./verify.sh`; items 4 and 6 additionally have the user's recorded approval.

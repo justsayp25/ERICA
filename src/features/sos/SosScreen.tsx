@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, Pressable, StyleSheet, Platform, Linking } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Platform, Linking, Vibration } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSosService } from './sosMachine';
@@ -7,10 +7,14 @@ import { getSettings } from '../settings/settingsStorage';
 import { requestEmergencyPermissions } from '../permissions/emergencyPermissions';
 import { addMarkSafeListener } from '../../../modules/foreground-service';
 
+/** How long the SOS button must be held when "hold to trigger" is on. */
+export const HOLD_TO_TRIGGER_MS = 1500;
+
 export function SosScreen() {
   const [state, send] = useSosService();
   const isIdle = state.matches('idle');
   const [smsPermissionMissing, setSmsPermissionMissing] = useState(false);
+  const [holdToTrigger, setHoldToTrigger] = useState(false);
 
   // Physical panic triggers are handled once, globally, in App.tsx. Listening here as well
   // sent every trigger to the machine twice.
@@ -44,6 +48,7 @@ export function SosScreen() {
     useCallback(() => {
       if (isIdle) {
         getSettings().then((s) => {
+          setHoldToTrigger(Boolean(s.holdToTrigger));
           send({ type: 'SETTINGS_UPDATED', countdownSeconds: s.countdownSeconds });
         });
       }
@@ -54,10 +59,26 @@ export function SosScreen() {
     <SafeAreaView style={styles.container}>
       {state.matches('idle') && (
         <View style={styles.idleContainer}>
-          <Pressable style={styles.sosButton} onPress={() => send({ type: 'TRIGGER', source: 'Manual Button' })}>
+          <Pressable
+            style={styles.sosButton}
+            delayLongPress={HOLD_TO_TRIGGER_MS}
+            onPress={holdToTrigger ? undefined : () => send({ type: 'TRIGGER', source: 'Manual Button' })}
+            onLongPress={
+              holdToTrigger
+                ? () => {
+                    Vibration.vibrate(60);
+                    send({ type: 'TRIGGER', source: 'Manual Button (held)' });
+                  }
+                : undefined
+            }
+          >
             <Text style={styles.sosButtonText}>SOS</Text>
           </Pressable>
-          <Text style={styles.subtext}>Tap to initiate emergency alert ({state.context.countdownTotal}s countdown)</Text>
+          <Text style={styles.subtext}>
+            {holdToTrigger
+              ? `Hold the button for ${HOLD_TO_TRIGGER_MS / 1000} seconds to start an emergency alert (${state.context.countdownTotal}s countdown)`
+              : `Tap to initiate emergency alert (${state.context.countdownTotal}s countdown)`}
+          </Text>
           {smsPermissionMissing ? (
             <Pressable style={styles.permissionBanner} onPress={onGrantSmsPermission}>
               <Text style={styles.permissionBannerText}>
