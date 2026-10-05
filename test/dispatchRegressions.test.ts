@@ -20,7 +20,7 @@ import {
   DecryptionFailedError,
 } from '../src/features/contacts/contactsStorage';
 import { appendHistoryEntry, HISTORY_STORAGE_KEY } from '../src/features/history/historyStorage';
-import { encryptString, generateRandomBytes, wipeMasterKeyMemory, lockVault } from '../src/features/security';
+import { encryptString, generateRandomBytes, wipeMasterKeyMemory } from '../src/features/security';
 import { getSosService, resetSosService } from '../src/features/sos/sosMachine';
 import { DEFAULT_SETTINGS, saveSettings } from '../src/features/settings/settingsStorage';
 
@@ -36,7 +36,6 @@ test.beforeEach(async () => {
   resetMockSecureStore();
   resetMockLocation();
   wipeMasterKeyMemory();
-  lockVault();
   await AsyncStorage.clear();
   resetDispatchEngineOverrides();
   resetSosService();

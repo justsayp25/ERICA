@@ -6,18 +6,8 @@ import { RootNavigator, navigationRef } from './src/app';
 import { initDispatchEngine } from './src/features/dispatch';
 import { getSettings } from './src/features/settings';
 import { getSosService } from './src/features/sos';
-import {
-  useAppLock,
-  LockScreen,
-  DecoyScreen,
-  runStorageMigration,
-  runCryptoSanityCheck,
-} from './src/features/security';
-import {
-  configureVolumeTrigger,
-  configureShakeTrigger,
-  addPanicTriggerListener,
-} from './modules/physical-triggers';
+import { runStorageMigration, runCryptoSanityCheck } from './src/features/security';
+import { configureVolumeTrigger, addPanicTriggerListener } from './modules/physical-triggers';
 
 export async function initPhysicalTriggers(): Promise<() => void> {
   const settings = await getSettings();
@@ -27,18 +17,7 @@ export async function initPhysicalTriggers(): Promise<() => void> {
     windowSeconds: settings.volumeWindowSeconds ?? 3,
   }).catch((err) => console.warn('[App] Failed to configure volume trigger:', err));
 
-  await configureShakeTrigger({
-    enabled: Boolean(settings.shakeTriggerEnabled),
-    jerkThreshold: settings.shakeThreshold ?? 25,
-    minShakes: settings.shakeMinCount ?? 3,
-    highPassAlpha: settings.shakeHighPassAlpha ?? 0.8,
-  }).catch((err) => console.warn('[App] Failed to configure shake trigger:', err));
-
   const sub = addPanicTriggerListener((event) => {
-    // CRITICAL THREAT-MODEL GUARD: Emergency Dispatch Bypass
-    // The PIN gate protects UI and data inspection screens only.
-    // If a user triggers SOS via hardware volume buttons or shake while the phone is locked,
-    // the background dispatch queue and SMS sending proceed unimpeded without prompting for a PIN.
     getSosService().send({ type: 'TRIGGER', source: event?.source });
     if (navigationRef.isReady()) {
       navigationRef.navigate('SOS' as never);
@@ -48,46 +27,6 @@ export async function initPhysicalTriggers(): Promise<() => void> {
   return () => {
     sub.remove();
   };
-}
-
-function MainApp() {
-  const { isInitialized, isLocked, isPinConfigured, isDuressMode, recordActivity } = useAppLock();
-
-  // Until the stored PIN state is read we don't know whether to lock, so render nothing
-  // rather than flashing the unlocked contacts/history UI on every cold start.
-  if (!isInitialized) {
-    return <View style={{ flex: 1, backgroundColor: '#0B0B0F' }} />;
-  }
-
-  if (isDuressMode) {
-    return (
-      <View
-        style={{ flex: 1 }}
-        onStartShouldSetResponderCapture={() => {
-          recordActivity();
-          return false;
-        }}
-      >
-        <DecoyScreen />
-      </View>
-    );
-  }
-
-  if (isPinConfigured && isLocked) {
-    return <LockScreen />;
-  }
-
-  return (
-    <View
-      style={{ flex: 1 }}
-      onStartShouldSetResponderCapture={() => {
-        recordActivity();
-        return false;
-      }}
-    >
-      <RootNavigator />
-    </View>
-  );
 }
 
 export default function App() {
@@ -156,7 +95,7 @@ export default function App() {
           </Text>
         </View>
       )}
-      <MainApp />
+      <RootNavigator />
     </SafeAreaProvider>
   );
 }

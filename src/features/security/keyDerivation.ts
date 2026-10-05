@@ -3,8 +3,8 @@
  *
  * Implements:
  * - Cryptographically secure salt generation (256-bit salt)
- * - PBKDF2-HMAC-SHA256 key stretching (default 100,000 iterations per OWASP recommendations)
- *   protecting user PINs against offline brute-force and dictionary attacks.
+ * - PBKDF2-HMAC-SHA256 key stretching (default 100,000 iterations per OWASP recommendations),
+ *   kept for password-protected exports such as a future encrypted backup file.
  * - Constant-time comparison (timingSafeEqual) preventing timing side-channel attacks.
  * - Buffer scrubbing (wipeBuffer) ensuring sensitive key material is wiped from memory.
  */
@@ -19,14 +19,6 @@ import {
   nativePbkdf2,
   nativePbkdf2Sync,
 } from './nativeCrypto';
-
-export interface StretchedPinRecord {
-  salt: string; // Hex-encoded salt
-  hash: string; // Hex-encoded derived verification hash
-  iterations: number;
-  algorithm: string;
-  keyLength: number;
-}
 
 /**
  * Wipes a Uint8Array buffer in-place with zeroes so sensitive material
@@ -290,80 +282,4 @@ export async function pbkdf2HmacSha256(
  */
 export function generateSalt(byteLength: number = DEFAULT_SALT_BYTES): Uint8Array {
   return generateRandomBytes(byteLength);
-}
-
-/**
- * Derives a cryptographic key from a PIN and salt using PBKDF2 key stretching.
- */
-export async function deriveKeyFromPin(
-  pin: string,
-  salt: Uint8Array,
-  iterations: number = DEFAULT_PBKDF2_ITERATIONS,
-  keyLength: number = DEFAULT_KEY_BYTES
-): Promise<Uint8Array> {
-  if (!pin || pin.length < 4) {
-    throw new Error('PIN must be at least 4 characters in length.');
-  }
-  return await pbkdf2HmacSha256(pin, salt, iterations, keyLength);
-}
-
-/**
- * Creates a stretched verification record for a user PIN.
- * Generates a unique 256-bit cryptographic salt and performs PBKDF2 stretching
- * so PIN verification cannot be precomputed or rainbow-table attacked.
- */
-export async function hashPin(
-  pin: string,
-  customSalt?: Uint8Array,
-  iterations: number = DEFAULT_PBKDF2_ITERATIONS
-): Promise<StretchedPinRecord> {
-  const salt = customSalt ? new Uint8Array(customSalt) : generateSalt(DEFAULT_SALT_BYTES);
-  let derivedHash: Uint8Array | null = null;
-  try {
-    derivedHash = await deriveKeyFromPin(pin, salt, iterations, DEFAULT_KEY_BYTES);
-    return {
-      salt: bytesToHex(salt),
-      hash: bytesToHex(derivedHash),
-      iterations,
-      algorithm: PBKDF2_ALGORITHM_NAME,
-      keyLength: DEFAULT_KEY_BYTES,
-    };
-  } finally {
-    wipeBuffer(derivedHash);
-    if (!customSalt) {
-      wipeBuffer(salt);
-    }
-  }
-}
-
-/**
- * Validates a user PIN against a stored StretchedPinRecord.
- * Uses constant-time comparison (timingSafeEqual) and wipes candidate key buffers.
- */
-export async function verifyPinHash(
-  pin: string,
-  record: { salt: string; hash: string; iterations: number }
-): Promise<boolean> {
-  if (!pin || !record?.salt || !record?.hash) {
-    return false;
-  }
-  let salt: Uint8Array | null = null;
-  let expectedHash: Uint8Array | null = null;
-  let candidateHash: Uint8Array | null = null;
-
-  try {
-    salt = hexToBytes(record.salt);
-    expectedHash = hexToBytes(record.hash);
-    candidateHash = await pbkdf2HmacSha256(
-      pin,
-      salt,
-      record.iterations || DEFAULT_PBKDF2_ITERATIONS,
-      expectedHash.length
-    );
-    return timingSafeEqual(candidateHash, expectedHash);
-  } catch {
-    return false;
-  } finally {
-    wipeBuffers(candidateHash, expectedHash, salt);
-  }
 }

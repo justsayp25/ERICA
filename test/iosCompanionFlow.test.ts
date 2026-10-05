@@ -1,19 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert';
 import { resetMockSecureStore } from './mockExpo.mjs';
-import { resetMockLocalAuthentication, setMockBiometricState } from './mockLocalAuthentication.mjs';
 import { setMockSmsAvailable, setMockSendResult, getLastSentSms, resetMockSms } from './mockSms.mjs';
 import { MockSQLiteDatabase } from './mockDatabase';
 import { Platform } from './mockReactNative.mjs';
-import {
-  setupPin,
-  lockVault,
-  isVaultLocked,
-  isMasterKeyLoaded,
-  appLockController,
-  getBiometricCapabilities,
-  unlockWithBiometrics,
-} from '../src/features/security';
 import { saveContacts, type Contact } from '../src/features/contacts/contactsStorage';
 import { DEFAULT_SETTINGS, saveSettings } from '../src/features/settings/settingsStorage';
 import { clearHistory } from '../src/features/history/historyStorage';
@@ -37,22 +27,16 @@ test.beforeEach(async () => {
   // The composer fallback is the iOS companion path; Android always queues instead.
   (Platform as { OS: string }).OS = 'ios';
   resetMockSecureStore();
-  resetMockLocalAuthentication();
   resetMockSms();
   setCustomComposerSender(null);
   await stopEmergencyDeterrenceAndEvidence();
-  lockVault();
   resetSosService();
   await clearHistory();
   await saveSettings({
     ...DEFAULT_SETTINGS,
-    appLockTimeoutSeconds: 0,
     countdownSeconds: 1, // Fast 1s countdown for tests
     volumeTriggerEnabled: false,
-    shakeTriggerEnabled: false,
-    biometricsEnabled: true,
   });
-  appLockController.destroy();
   resetDispatchEngineOverrides();
 });
 
@@ -71,7 +55,6 @@ test('Task 5.1: iOS Companion Check - Capability-honest detection: Silent SMS is
   const contacts: Contact[] = [
     { id: 'ios_c1', name: 'iOS Guardian', phoneNumber: '+14085550199' },
   ];
-  await setupPin('123456', 1000);
   await saveContacts(contacts);
 
   let composerOpened = false;
@@ -110,7 +93,6 @@ test('Task 5.2: iOS Companion Flow - Cancellable countdown allows user to cancel
     availabilityChecker: async () => false,
   });
 
-  await setupPin('654321', 1000);
   await saveContacts([{ id: 'c1', name: 'Parent', phoneNumber: '+14085551111' }]);
 
   let composerCalls = 0;
@@ -139,7 +121,6 @@ test('Task 5.3: iOS Companion Flow - Expired countdown triggers prefilled SMS co
     availabilityChecker: async () => false,
   });
 
-  await setupPin('888888', 1000);
   await saveContacts([{ id: 'c1', name: 'Trusted Partner', phoneNumber: '+14085552222' }]);
 
   let sentMessages: string[] = [];
@@ -173,27 +154,3 @@ test('Task 5.3: iOS Companion Flow - Expired countdown triggers prefilled SMS co
   assert.ok(sentMessages[1].includes('EMERGENCY RESOLVED'));
 });
 
-test('Task 5.4: iOS Face ID & Biometrics Gatekeeper - Biometric authentication unlocks vault cleanly on iOS', async () => {
-  setMockBiometricState({ hardware: true, enrolled: true });
-
-  await setupPin('777999', 1000);
-  await appLockController.init();
-  appLockController.lock();
-
-  assert.strictEqual(appLockController.getSnapshot().isLocked, true);
-  assert.strictEqual(isVaultLocked(), true);
-
-  // Check biometric capabilities on iOS
-  const caps = await getBiometricCapabilities();
-  assert.strictEqual(caps.hasHardware, true);
-  assert.strictEqual(caps.isEnrolled, true);
-
-  // Trigger Face ID biometric prompt
-  const unlockResult = await appLockController.unlockWithBiometrics('Verify with Face ID to unlock E.R.I.C.A.');
-  assert.strictEqual(unlockResult.success, true);
-
-  // Verify UI unlocked and master key is accessible
-  assert.strictEqual(appLockController.getSnapshot().isLocked, false);
-  assert.strictEqual(isVaultLocked(), false);
-  assert.strictEqual(isMasterKeyLoaded(), true);
-});

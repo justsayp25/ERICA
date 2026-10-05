@@ -10,7 +10,7 @@ import { initDispatchEngine, resetDispatchEngineOverrides } from '../src/feature
 import { composeEmergencyMessage, composeLocationUpdateMessage } from '../src/features/dispatch/smsDispatch';
 import { saveContacts } from '../src/features/contacts/contactsStorage';
 import { DEFAULT_SETTINGS, saveSettings } from '../src/features/settings/settingsStorage';
-import { wipeMasterKeyMemory, lockVault } from '../src/features/security';
+import { wipeMasterKeyMemory } from '../src/features/security';
 import { getSosService, resetSosService } from '../src/features/sos/sosMachine';
 import {
   startEmergencyDeterrenceAndEvidence,
@@ -37,7 +37,6 @@ test.beforeEach(async () => {
   resetMockSecureStore();
   resetMockLocation();
   wipeMasterKeyMemory();
-  lockVault();
   await AsyncStorage.clear();
   resetDispatchEngineOverrides();
   resetDeterrenceEvidenceOverrides();

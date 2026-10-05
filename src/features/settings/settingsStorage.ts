@@ -8,23 +8,10 @@ export interface Settings {
   customMessage: string;
   retryCeilingSeconds?: number;
 
-  // Strict Safety Defaults: All physical triggers remain OFF by default
+  // Volume-button trigger (off until the user turns it on)
   volumeTriggerEnabled?: boolean;
   volumePressCount?: number;
   volumeWindowSeconds?: number;
-
-  shakeTriggerEnabled?: boolean;
-  shakeThreshold?: number;
-  shakeMinCount?: number;
-  shakeHighPassAlpha?: number;
-
-  // App Lock & Biometric Gatekeeper
-  appLockTimeoutSeconds?: number; // 0 = Immediate, 15, 30, 60
-  biometricsEnabled?: boolean;
-
-  // Duress PIN & Anti-Coercion Protection
-  duressSilentSosEnabled?: boolean;
-  decoyContactsType?: 'mock' | 'empty';
 
   // Deterrence & Alarms. 'loud' runs the siren, strobe and vibration switched on below;
   // 'silent' runs none of them (alert and consented evidence only).
@@ -58,19 +45,6 @@ export const DEFAULT_SETTINGS: Settings = {
   volumeTriggerEnabled: false,
   volumePressCount: 4,
   volumeWindowSeconds: 3,
-
-  shakeTriggerEnabled: false,
-  shakeThreshold: 25,
-  shakeMinCount: 3,
-  shakeHighPassAlpha: 0.8,
-
-  // App Lock Defaults: Immediate lock, Biometrics enabled
-  appLockTimeoutSeconds: 0,
-  biometricsEnabled: true,
-
-  // Duress PIN Defaults: Silent SOS off by default, Mock contacts default
-  duressSilentSosEnabled: false,
-  decoyContactsType: 'mock',
 
   // Loud by default (siren, flashing light, vibration); evidence capture below still needs
   // explicit consent. Respect Silent Mode stays ON so a phone set to silent/vibrate does not

@@ -19,14 +19,12 @@ import {
   configureDispatchEngineOverrides,
   resetDispatchEngineOverrides,
 } from '../src/features/dispatch/queueProcessor';
-import { setupPin, lockVault, isEncryptedPayload } from '../src/features/security';
+import { isEncryptedPayload } from '../src/features/security';
 import type { NetInfoState } from '@react-native-community/netinfo';
 
 test.beforeEach(async () => {
   resetMockSecureStore();
-  lockVault();
   resetDispatchEngineOverrides();
-  await setupPin('123456', 1000);
 });
 
 test('Task 4.1: Airplane Mode Buffering - Emergency alert while in Airplane Mode is securely persisted in SQLite with backoff', async () => {

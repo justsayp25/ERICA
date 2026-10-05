@@ -53,8 +53,8 @@ Goal: everything that requires leaving Expo Go for a Dev Client build.
 4. Persistent outbox queue — durable, survives app kill/reboot, retries with
    backoff instead of giving up after a fixed number of tries.
 5. Background triggers added one at a time, each **off by default** until
-   tuned: hardware-button sequence, shake. Voice trigger deferred — it needs
-   internet, which fights the offline goal.
+   tuned: hardware-button sequence. (A shake trigger was built and later
+   removed at the owner's request on 2026-10-05.) Voice trigger deferred.
 
 **Done when:** SOS fires silently with the screen off, a real SMS lands on
 contacts' phones with zero taps, and a dropped signal keeps retrying instead
@@ -74,6 +74,10 @@ ending up in the wrong hands.
 **Done when:** the phone in someone else's hands is locked out without the
 PIN, and the local database is unreadable without the app's key.
 
+*Change (2026-10-05):* at the project owner's request the PIN app lock, biometric unlock and
+duress PIN/decoy (item 1) were removed. Encrypted local storage (item 2) stays. LAWS.md Law 3
+was replaced accordingly (see its Amendment Log).
+
 ## Phase 4 — Deterrence & evidence
 
 - [x] Siren + strobe, respecting silent mode.
@@ -91,7 +95,7 @@ during its emergency path.
       with zero tests, on the single most safety-critical path in the app.
 - [x] Integration test for the full trigger → countdown → dispatch path.
 - [x] CI runs the suite on every PR and enforces coverage floors.
-- [x] Adversarial test matrix covering dead-zone outbox buffering, reboot survivability, task dismissal, and progressive PIN throttling.
+- [x] Adversarial test matrix covering dead-zone outbox buffering, reboot survivability, task dismissal, and (until its removal) progressive PIN throttling.
 
 *Status (2026-10-04):* items 1–4 are in place and CI enforces a coverage floor
 (`npm run test:coverage`: lines 85%, branches 78%, functions 70% over `src/` and the module
@@ -123,7 +127,7 @@ Once Android is solid. iOS forbids programmatic background SMS and always-on
 sensor triggers, so this ships as a capability-honest companion, not feature
 parity — stated plainly in the concept paper's Scope & Limitations.
 
-*Implementation note:* Delivered as a capability-honest companion: UI-driven cancellable countdown, `expo-sms` composer fallback, and Face ID / Touch ID biometric gatekeeper (`expo-local-authentication`). Non-blocking tests run cleanly in headless CI without requiring Xcode.
+*Implementation note:* Delivered as a capability-honest companion: UI-driven cancellable countdown, `expo-sms` composer fallback. Non-blocking tests run cleanly in headless CI without requiring Xcode.
 
 ## Phase 9 — Feature parity with SOS-alerter
 

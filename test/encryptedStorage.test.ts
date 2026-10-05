@@ -21,7 +21,6 @@ import {
   resetStorageMigrationFlag,
   generateMasterKey,
   wipeMasterKeyMemory,
-  lockVault,
 } from '../src/features/security';
 import {
   getContacts,
@@ -52,7 +51,6 @@ import {
 test.beforeEach(async () => {
   resetMockSecureStore();
   wipeMasterKeyMemory();
-  lockVault();
   await AsyncStorage.clear();
   await resetStorageMigrationFlag();
 });
@@ -340,7 +338,7 @@ test('7. ADB Dump Simulation: Raw storage dump across flash storage contains zer
   await addContact({ name: 'Secret Agent Contact', phoneNumber: '+18005550199' });
   await appendHistoryEntry({
     sessionId: 'top_secret_sos_session',
-    triggerSource: 'Covert Shake Panic',
+    triggerSource: 'Covert Volume Panic',
     startedAt: Date.now(),
     resolvedAt: null,
     locationCaptured: true,
@@ -356,7 +354,7 @@ test('7. ADB Dump Simulation: Raw storage dump across flash storage contains zer
     assert.strictEqual(rawVal!.includes('Secret Agent Contact'), false);
     assert.strictEqual(rawVal!.includes('+18005550199'), false);
     assert.strictEqual(rawVal!.includes('top_secret_sos_session'), false);
-    assert.strictEqual(rawVal!.includes('Covert Shake Panic'), false);
+    assert.strictEqual(rawVal!.includes('Covert Volume Panic'), false);
   }
 
   for (const row of mockDb.rows.values()) {

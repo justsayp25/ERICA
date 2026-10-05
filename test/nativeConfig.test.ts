@@ -7,7 +7,6 @@ import {
   applyGradleProjectName,
   applyPanicIntentHooks,
 } from '../plugins/withEricaAndroidConfig';
-import { ShakeDetectorEngine } from '../modules/physical-triggers';
 
 const KOTLIN_ACTIVITY = `package com.erica.sos
 
@@ -74,24 +73,47 @@ test('volume trigger survives a process restart: config is persisted and restore
   const dir = 'modules/physical-triggers/android/src/main/java/expo/modules/physicaltriggers';
   const module = fs.readFileSync(`${dir}/PhysicalTriggersModule.kt`, 'utf8');
   const service = fs.readFileSync(`${dir}/EricaAccessibilityService.kt`, 'utf8');
-  const configure = module.slice(module.indexOf('AsyncFunction("configureVolumeTrigger")'));
-  assert.ok(
-    configure.indexOf('saveVolumeConfig(') !== -1 &&
-      configure.indexOf('saveVolumeConfig(') < configure.indexOf('AsyncFunction("configureShakeTrigger")'),
-    'configureVolumeTrigger must persist what JS set'
-  );
+  const start = module.indexOf('AsyncFunction("configureVolumeTrigger")');
+  const configure = module.slice(start, module.indexOf('AsyncFunction(', start + 1));
+  assert.ok(configure.includes('saveVolumeConfig('), 'configureVolumeTrigger must persist what JS set');
   const connected = service.slice(service.indexOf('fun onServiceConnected'), service.indexOf('fun onAccessibilityEvent'));
   assert.ok(connected.includes('restoreVolumeConfig('), 'the accessibility service must restore it on connect');
 });
 
-test('settings switches save without the Save button', () => {
+test('settings save on every change: no Save button, and every control goes through update()', () => {
   const screen = fs.readFileSync('src/features/settings/SettingsScreen.tsx', 'utf8');
-  const effect = screen.slice(screen.indexOf('if (!loadedRef.current) return;'));
-  assert.ok(effect.includes('persistSettings('), 'auto-save effect must persist');
-  const deps = effect.slice(effect.indexOf('}, ['), effect.indexOf(']);'));
-  for (const name of ['sirenEnabled', 'strobeEnabled', 'volumeEnabled', 'shakeEnabled']) {
-    assert.ok(deps.includes(name), `${name} must trigger an auto-save`);
+  const update = screen.slice(screen.indexOf('const update = (patch'), screen.indexOf('const loud ='));
+  assert.ok(update.includes('saveSettings(next)'), 'update() must persist immediately');
+  assert.ok(update.includes('configureVolumeTrigger('), 'volume changes must reach the native detector');
+  assert.ok(!screen.includes('Save Settings'), 'there must be no Save button to forget');
+  for (const key of ['deterrenceSirenEnabled', 'deterrenceStrobeEnabled', 'vibrationEnabled', 'volumeTriggerEnabled']) {
+    assert.ok(screen.includes(`update({ ${key}: v })`), `${key} must save on change`);
   }
+});
+
+test('removed features stay removed: no shake detector, PIN, app lock, duress or decoy code', () => {
+  const triggers = 'modules/physical-triggers';
+  assert.ok(!fs.existsSync(`${triggers}/android/src/main/java/expo/modules/physicaltriggers/ShakeDetector.kt`));
+  for (const file of [
+    `${triggers}/index.ts`,
+    `${triggers}/src/PhysicalTriggers.types.ts`,
+    `${triggers}/android/src/main/java/expo/modules/physicaltriggers/PhysicalTriggersModule.kt`,
+    'App.tsx',
+    'src/features/settings/settingsStorage.ts',
+  ]) {
+    assert.ok(!/shake/i.test(fs.readFileSync(file, 'utf8')), `${file} still mentions shake`);
+  }
+  for (const gone of [
+    'src/features/security/pinAuth.ts',
+    'src/features/security/appLockController.ts',
+    'src/features/security/LockScreen.tsx',
+    'src/features/security/biometrics.ts',
+    'src/features/contacts/DecoyScreen.tsx',
+    'src/features/dispatch/duressDispatch.ts',
+  ]) {
+    assert.ok(!fs.existsSync(gone), `${gone} should be deleted`);
+  }
+  assert.ok(!/LockScreen|useAppLock|DecoyScreen/.test(fs.readFileSync('App.tsx', 'utf8')), 'App.tsx must not gate on a PIN');
 });
 
 test('boot receiver ships in the library and reads the outbox where expo-sqlite stores it', () => {
@@ -125,22 +147,3 @@ test('accessibility service lives in the library and does not subscribe to all U
   assert.ok(config.includes('flagRequestFilterKeyEvents'));
 });
 
-test('live shake calibration: registerSpike completes the pattern only with enough reversals in the window', () => {
-  let fired = 0;
-  const engine = new ShakeDetectorEngine({ enabled: true, minShakes: 3, onTrigger: () => fired++ });
-  const t = 1_000_000;
-  assert.strictEqual(engine.registerSpike(t), false);
-  assert.strictEqual(engine.registerSpike(t + 50), false, 'debounced: same stroke');
-  assert.strictEqual(engine.registerSpike(t + 200), false);
-  assert.strictEqual(engine.registerSpike(t + 400), true);
-  assert.strictEqual(fired, 1);
-  assert.strictEqual(engine.registerSpike(t + 600), false, 'cooldown after a trigger');
-
-  const spread = new ShakeDetectorEngine({ enabled: true, minShakes: 3 });
-  spread.registerSpike(t);
-  spread.registerSpike(t + 1000);
-  assert.strictEqual(spread.registerSpike(t + 2000), false, 'spikes outside the 1.5s window do not count');
-
-  const disabled = new ShakeDetectorEngine({ enabled: false });
-  assert.strictEqual(disabled.registerSpike(t), false);
-});

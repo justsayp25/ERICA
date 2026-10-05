@@ -9,8 +9,6 @@ import { MockSQLiteDatabase } from './mockDatabase';
 import {
   generateMasterKey,
   wipeMasterKeyMemory,
-  lockVault,
-  isVaultLocked,
   isMasterKeyLoaded,
   encryptData,
   decryptData,
@@ -48,7 +46,6 @@ import {
 test.beforeEach(async () => {
   resetMockSecureStore();
   wipeMasterKeyMemory();
-  lockVault();
   await AsyncStorage.clear();
 });
 
@@ -89,7 +86,7 @@ test('Task 2.2: Raw on-disk emergency history logs contain strictly ciphertext a
 
   const sensitiveHistory: HistoryEntry = {
     sessionId: 'hostage_coercion_alert_999',
-    triggerSource: 'Covert Shake Panic Under Duress',
+    triggerSource: 'Covert Volume Panic',
     startedAt: 1727600000000,
     resolvedAt: null,
     locationCaptured: true,
@@ -103,7 +100,7 @@ test('Task 2.2: Raw on-disk emergency history logs contain strictly ciphertext a
 
   // Zero-Leak verification
   assert.strictEqual(rawOnDisk!.includes('hostage_coercion_alert_999'), false);
-  assert.strictEqual(rawOnDisk!.includes('Covert Shake Panic'), false);
+  assert.strictEqual(rawOnDisk!.includes('Covert Volume Panic'), false);
   assert.strictEqual(rawOnDisk!.includes('startedAt'), false);
 });
 

@@ -23,7 +23,7 @@ E.R.I.C.A. employs a hybrid architecture balancing cross-platform testability wi
 
 ### 3. iOS Capability-Honest Companion
 - Adheres strictly to Apple platform sandboxing, which prohibits background programmatic SMS and global hardware key interception.
-- Operates as a **capability-honest companion**: provides UI-driven cancellable countdowns, fallback to native SMS composer (`expo-sms`) pre-populated with live GPS links, and biometric authentication (Face ID / Touch ID) via `expo-local-authentication`.
+- Operates as a **capability-honest companion**: provides UI-driven cancellable countdowns, fallback to native SMS composer (`expo-sms`) pre-populated with live GPS links.
 
 ---
 
@@ -43,10 +43,11 @@ For detailed device configuration, ADB validation commands, and OEM battery opti
 
 ## Trust & Privacy Guarantees
 
-1. **Hardware-Backed Cryptography**: All offline contacts, history logs, and outbox payloads are encrypted at rest with authenticated AES-256-GCM.
-2. **Native PBKDF2 Key Stretching**: Empirically measured at **207,856 ms** (~3.46 minutes) under interpreted Hermes bytecode, key stretching was moved to native C++ JSI / OpenSSL bindings (`react-native-quick-crypto`), achieving **<140 ms** on reference hardware without UI thread freezing.
-3. **Progressive Lockout Ladder**: Protects against brute-force attacks with progressive backoff delays enforced and persisted in hardware `SecureStore`.
-4. **Coercion-Safe Duress Mode**: Biometric unlock defaults to **OFF** under Duress Mode because physical biometrics cannot resist physical coercion. Unlocking requires a dedicated 6-digit Duress PIN that displays a sanitized decoy interface while silently queuing distress dispatches.
+1. **Hardware-Backed Cryptography**: All offline contacts, history logs, evidence, and outbox payloads are encrypted at rest with authenticated AES-256-GCM, using a master key held in the phone's hardware keystore.
+2. **SMS Baseline**: Alerts go out as plain SMS through your own SIM, so contacts need nothing installed (see [LAWS.md](LAWS.md) Law 3).
+3. **Zero Telemetry**: No analytics, ads or tracking. Data only leaves the phone as an alert you send (Law 5).
+
+The PIN app lock, biometric unlock and duress PIN were removed on 2026-10-05 at the project owner's request (see the LAWS.md Amendment Log).
 
 ---
 
@@ -77,11 +78,11 @@ ERICA/
 ├── src/                     # Pure TypeScript domain logic & application shell
 │   ├── app/                 # Root navigation and screen layout
 │   └── features/            # Feature domains
-│       ├── contacts/        # Encrypted emergency & decoy contacts
+│       ├── contacts/        # Encrypted emergency contacts
 │       ├── dispatch/        # SQLite outbox queue & exponential backoff retry engine
 │       ├── history/         # Encrypted incident & dispatch audit log
 │       ├── location/        # High-accuracy emergency GPS provider
-│       ├── security/        # AES-256-GCM, native PBKDF2, master key lifecycle & app lock
+│       ├── security/        # AES-256-GCM, native PBKDF2, master key lifecycle
 │       ├── settings/        # Hardware triggers and alert preferences
 │       └── sos/             # XState v5 emergency state machine and primary UI
 ├── test/                    # 13-suite automated test matrix & headless mocks
