@@ -358,3 +358,64 @@ test('emergency call: the siren is skipped so the call can be heard (strobe and 
   assert.deepStrictEqual(started, ['strobe']);
   assert.ok(vibrationCalls().some((c) => c.type === 'vibrate'));
 });
+
+test('loud mode: siren and flashing start the moment SOS is pressed; CANCEL stops them (Law 4)', async () => {
+  const events: string[] = [];
+  configureDeterrenceEvidenceOverrides({
+    getRingerMode: async () => 'normal',
+    startSiren: async () => {
+      events.push('siren:on');
+      return { started: true, suppressedBySilentMode: false };
+    },
+    startStrobe: async () => {
+      events.push('strobe:on');
+      return true;
+    },
+    stopSiren: async () => {
+      events.push('siren:off');
+      return true;
+    },
+    stopStrobe: async () => {
+      events.push('strobe:off');
+      return true;
+    },
+  });
+  await saveSettings({ ...DEFAULT_SETTINGS, countdownSeconds: 30 });
+  const sos = getSosService();
+  sos.send({ type: 'SETTINGS_UPDATED', countdownSeconds: 30 });
+  sos.send({ type: 'TRIGGER', source: 'test' });
+  assert.ok(sos.getSnapshot().matches('countdown'));
+  await waitFor(() => events.includes('siren:on') && events.includes('strobe:on'));
+  assert.ok(vibrationCalls().some((c) => c.type === 'vibrate'), 'vibration starts with the countdown');
+  assert.ok(sos.getSnapshot().matches('countdown'), 'still counting down: nothing has been sent yet');
+
+  sos.send({ type: 'CANCEL' });
+  await waitFor(() => events.includes('siren:off') && events.includes('strobe:off'));
+  assert.ok(vibrationCalls().some((c) => c.type === 'cancel'));
+  await stopEmergencyDeterrenceAndEvidence();
+  resetSosService();
+});
+
+test('silent mode: pressing SOS starts no siren, flashing or vibration during the countdown', async () => {
+  const events: string[] = [];
+  configureDeterrenceEvidenceOverrides({
+    startSiren: async () => {
+      events.push('siren:on');
+      return { started: true, suppressedBySilentMode: false };
+    },
+    startStrobe: async () => {
+      events.push('strobe:on');
+      return true;
+    },
+  });
+  await saveSettings({ ...DEFAULT_SETTINGS, alertMode: 'silent', countdownSeconds: 30 });
+  const sos = getSosService();
+  sos.send({ type: 'SETTINGS_UPDATED', countdownSeconds: 30 });
+  sos.send({ type: 'TRIGGER', source: 'test' });
+  await new Promise((r) => setTimeout(r, 150));
+  assert.deepStrictEqual(events, []);
+  assert.ok(!vibrationCalls().some((c) => c.type === 'vibrate'));
+  sos.send({ type: 'CANCEL' });
+  await stopEmergencyDeterrenceAndEvidence();
+  resetSosService();
+});

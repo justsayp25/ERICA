@@ -15,7 +15,8 @@ import {
   releaseEmergencyWakeLock,
 } from '../../../modules/foreground-service';
 import {
-  startEmergencyDeterrenceAndEvidence,
+  startEmergencyDeterrence,
+  startEmergencyEvidence,
   stopEmergencyDeterrenceAndEvidence,
 } from '../evidence/evidenceCoordinator';
 
@@ -232,10 +233,14 @@ export const sosMachine = setup({
         console.warn('[sosMachine] releaseWakeLock error:', err)
       );
     },
-    startDeterrenceAndEvidence: ({ context }) => {
+    // Loud mode sounds the siren and flashes as soon as SOS is pressed, during the countdown.
+    startDeterrence: () => {
+      startEmergencyDeterrence().catch((err) => console.warn('[sosMachine] startDeterrence error:', err));
+    },
+    startEvidence: ({ context }) => {
       const sessionId = context.sessionId || `${Date.now()}`;
-      startEmergencyDeterrenceAndEvidence(sessionId, context.triggerSource).catch((err) =>
-        console.warn('[sosMachine] startDeterrenceAndEvidence error:', err)
+      startEmergencyEvidence(sessionId).catch((err) =>
+        console.warn('[sosMachine] startEvidence error:', err)
       );
     },
     placeEmergencyCall: () => {
@@ -282,7 +287,7 @@ export const sosMachine = setup({
       },
     },
     countdown: {
-      entry: 'startCountdownService',
+      entry: ['startCountdownService', 'startDeterrence'],
       invoke: { src: 'countdownTicker' },
       on: {
         CANCEL: {
@@ -308,7 +313,7 @@ export const sosMachine = setup({
           sessionId: () => `${Date.now()}`,
           lastError: () => null,
         }),
-        'startDeterrenceAndEvidence',
+        'startEvidence',
       ],
       exit: 'releaseWakeLock',
       invoke: {

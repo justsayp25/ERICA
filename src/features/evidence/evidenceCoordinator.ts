@@ -86,8 +86,21 @@ function rotateAudioSegment(sessionId: string): void {
 }
 
 /**
- * Initiates deterrence (siren & strobe) and consent-gated evidence capture (audio & photos)
- * completely off the main UI thread during an emergency alert.
+ * Starts the siren, strobe and vibration (Loud mode only). Called as soon as SOS is pressed,
+ * so the alarm sounds during the countdown; CANCEL stops it again.
+ */
+export function startEmergencyDeterrence(): Promise<void> {
+  return beginStart(() => runStart(null, { deterrence: true, evidence: false }));
+}
+
+/** Starts consented photo and audio capture for the alert session. Called once the alert is sent. */
+export function startEmergencyEvidence(sessionId: string): Promise<void> {
+  activeSessionId = sessionId;
+  return beginStart(() => runStart(sessionId, { deterrence: false, evidence: true }));
+}
+
+/**
+ * Starts deterrence and evidence capture together.
  *
  * Failure in deterrence or evidence capture never blocks SMS dispatch or GPS acquisition.
  */
@@ -96,15 +109,25 @@ export function startEmergencyDeterrenceAndEvidence(
   _triggerSource = 'Emergency'
 ): Promise<void> {
   activeSessionId = sessionId;
+  return beginStart(() => runStart(sessionId, { deterrence: true, evidence: true }));
+}
+
+// Starts are chained so a stop can wait for all of them (the deterrence start from the
+// countdown and the evidence start from dispatch).
+function beginStart(run: () => Promise<void>): Promise<void> {
   stopRequested = false;
-  const start = runStart(sessionId).finally(() => {
+  const previous = pendingStart ?? Promise.resolve();
+  const start: Promise<void> = previous.then(run, run).finally(() => {
     if (pendingStart === start) pendingStart = null;
   });
   pendingStart = start;
   return start;
 }
 
-async function runStart(sessionId: string): Promise<void> {
+async function runStart(
+  sessionId: string | null,
+  parts: { deterrence: boolean; evidence: boolean }
+): Promise<void> {
   const nativeStarts: Promise<unknown>[] = [];
   try {
     const settings = await getSettings();
@@ -116,10 +139,10 @@ async function runStart(sessionId: string): Promise<void> {
     const strobe = loud && Boolean(settings.deterrenceStrobeEnabled);
 
     // 1. Off-thread Deterrence: Siren & Strobe, plus vibration
-    if (loud && settings.vibrationEnabled) {
+    if (parts.deterrence && loud && settings.vibrationEnabled) {
       startAlertVibration();
     }
-    if (siren || strobe) {
+    if (parts.deterrence && (siren || strobe)) {
       nativeStarts.push(
         startDeterrence({
           sirenEnabled: siren,
@@ -136,7 +159,7 @@ async function runStart(sessionId: string): Promise<void> {
     }
 
     // 2. Off-thread Consent-Gated Photo Evidence Capture
-    if (settings.evidencePhotoConsentEnabled) {
+    if (parts.evidence && sessionId && settings.evidencePhotoConsentEnabled) {
       captureConsentGatedPhotos(true, settings.evidenceDualCamera ?? true)
         .then(async (photos) => {
           if (photos.length > 0) {
@@ -159,7 +182,7 @@ async function runStart(sessionId: string): Promise<void> {
     }
 
     // 3. Off-thread Consent-Gated Audio Evidence Recording
-    if (settings.evidenceAudioConsentEnabled) {
+    if (parts.evidence && sessionId && settings.evidenceAudioConsentEnabled) {
       nativeStarts.push(
         startConsentGatedAudioRecording(sessionId, true)
           .then((started) => {
