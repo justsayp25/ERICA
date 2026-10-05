@@ -9,6 +9,7 @@ import { MockSQLiteDatabase } from './mockDatabase';
 import { initDispatchEngine, resetDispatchEngineOverrides } from '../src/features/dispatch/queueProcessor';
 import { composeEmergencyMessage, composeLocationUpdateMessage } from '../src/features/dispatch/smsDispatch';
 import { saveContacts } from '../src/features/contacts/contactsStorage';
+import { setEmergencyCallerForTesting } from '../src/features/dispatch/emergencyCall';
 import { DEFAULT_SETTINGS, saveSettings } from '../src/features/settings/settingsStorage';
 import { wipeMasterKeyMemory } from '../src/features/security';
 import { getSosService, resetSosService } from '../src/features/sos/sosMachine';
@@ -41,6 +42,7 @@ test.beforeEach(async () => {
   resetDispatchEngineOverrides();
   resetDeterrenceEvidenceOverrides();
   resetVibration();
+  setEmergencyCallerForTesting(null);
   resetSosService();
 });
 
@@ -249,4 +251,110 @@ test('hold to trigger: the SOS button only starts an alert on a long press when 
   assert.ok(screen.includes('onPress={holdToTrigger ? undefined'), 'a plain tap must do nothing while hold is required');
   assert.ok(screen.includes('onLongPress'), 'long press must be wired');
   assert.ok(screen.includes('delayLongPress={HOLD_TO_TRIGGER_MS}'));
+});
+
+async function runAlert(
+  settings: Partial<typeof DEFAULT_SETTINGS>,
+  caller: (n: string, sentSoFar: string[]) => Promise<boolean>
+) {
+  const sent: string[] = [];
+  const teardown = await initDispatchEngine({
+    customDb: new MockSQLiteDatabase(),
+    subscriber: () => () => {},
+    availabilityChecker: async () => true,
+    silentSmsSender: async (_recipients, message) => {
+      sent.push(message);
+      return true;
+    },
+  });
+  configureDeterrenceEvidenceOverrides({
+    getRingerMode: async () => 'normal',
+    startSiren: async () => ({ started: true, suppressedBySilentMode: false }),
+    startStrobe: async () => true,
+  });
+  setEmergencyCallerForTesting((n) => caller(n, sent));
+  await saveSettings({ ...DEFAULT_SETTINGS, countdownSeconds: 1, ...settings });
+  await saveContacts([
+    { id: 'c1', name: 'Ana', phoneNumber: '+15550100' },
+    { id: 'c2', name: 'Ben', phoneNumber: '+15550200' },
+  ]);
+  const sos = getSosService();
+  sos.send({ type: 'SETTINGS_UPDATED', countdownSeconds: 1 });
+  sos.send({ type: 'TRIGGER', source: 'test' });
+  await waitFor(() => sos.getSnapshot().matches('active'));
+  return { sos, sent, teardown };
+}
+
+/** Ends the alert the way a user does and waits until it is fully over. */
+async function finish(run: { sos: ReturnType<typeof getSosService>; teardown: () => void }) {
+  run.sos.send({ type: 'MARK_SAFE' });
+  await waitFor(() => run.sos.getSnapshot().matches('idle'));
+  await stopEmergencyDeterrenceAndEvidence();
+  resetSosService();
+  run.teardown();
+}
+
+test('emergency call: off by default, nobody is called', async () => {
+  const called: string[] = [];
+  const run = await runAlert({}, async (n) => {
+    called.push(n);
+    return true;
+  });
+  await new Promise((r) => setTimeout(r, 100));
+  await finish(run);
+  assert.deepStrictEqual(called, []);
+});
+
+test('emergency call: the chosen contact is called once, after the alert text is queued', async () => {
+  const called: string[] = [];
+  let alertSentBeforeCall = false;
+  const run = await runAlert({ emergencyCallContactId: 'c2' }, async (n, sentSoFar) => {
+    alertSentBeforeCall = sentSoFar.some((m) => m.startsWith('EMERGENCY ALERT:'));
+    called.push(n);
+    return true;
+  });
+  await waitFor(() => called.length > 0);
+  await new Promise((r) => setTimeout(r, 100));
+  await finish(run);
+  assert.deepStrictEqual(called, ['+15550200']);
+  assert.ok(alertSentBeforeCall, 'the SMS alert must go out before the call');
+});
+
+test('emergency call: a failing call never affects the alert; a deleted contact is skipped', async () => {
+  const failing = await runAlert({ emergencyCallContactId: 'c1' }, async () => {
+    throw new Error('CALL_PERMISSION_MISSING');
+  });
+  await new Promise((r) => setTimeout(r, 100));
+  assert.ok(failing.sos.getSnapshot().matches('active'));
+  assert.ok(failing.sent.some((m) => m.startsWith('EMERGENCY ALERT:')));
+  await finish(failing);
+
+  const called: string[] = [];
+  const missing = await runAlert({ emergencyCallContactId: 'gone' }, async (n) => {
+    called.push(n);
+    return true;
+  });
+  await new Promise((r) => setTimeout(r, 100));
+  await finish(missing);
+  assert.deepStrictEqual(called, []);
+});
+
+test('emergency call: the siren is skipped so the call can be heard (strobe and vibration still run)', async () => {
+  const started: string[] = [];
+  configureDeterrenceEvidenceOverrides({
+    getRingerMode: async () => 'normal',
+    startSiren: async () => {
+      started.push('siren');
+      return { started: true, suppressedBySilentMode: false };
+    },
+    startStrobe: async () => {
+      started.push('strobe');
+      return true;
+    },
+  });
+  await saveSettings({ ...DEFAULT_SETTINGS, emergencyCallContactId: 'c1' });
+  await startEmergencyDeterrenceAndEvidence('s4');
+  await stopEmergencyDeterrenceAndEvidence();
+  assert.deepStrictEqual(started, ['strobe']);
+  assert.ok(vibrationCalls().some((c) => c.type === 'vibrate'));
 });

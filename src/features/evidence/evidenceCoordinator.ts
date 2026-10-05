@@ -111,7 +111,8 @@ async function runStart(sessionId: string): Promise<void> {
 
     // Silent mode runs no siren, strobe or vibration at all, whatever the switches say.
     const loud = (settings.alertMode ?? 'loud') === 'loud';
-    const siren = loud && Boolean(settings.deterrenceSirenEnabled);
+    // The siren would drown out the emergency call, so it is skipped when a call is set up.
+    const siren = loud && Boolean(settings.deterrenceSirenEnabled) && !settings.emergencyCallContactId;
     const strobe = loud && Boolean(settings.deterrenceStrobeEnabled);
 
     // 1. Off-thread Deterrence: Siren & Strobe, plus vibration

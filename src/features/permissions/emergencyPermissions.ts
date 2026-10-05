@@ -60,3 +60,19 @@ export async function requestEvidencePermission(kind: 'audio' | 'camera'): Promi
     return false;
   }
 }
+
+/** Requests CALL_PHONE, needed for the emergency call to connect without a tap. */
+export async function requestCallPermission(): Promise<boolean> {
+  if (Platform.OS !== 'android') {
+    return true;
+  }
+  try {
+    return (
+      (await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.CALL_PHONE)) ===
+      PermissionsAndroid.RESULTS.GRANTED
+    );
+  } catch (err) {
+    console.warn('[permissions] Failed to request call permission:', err);
+    return false;
+  }
+}

@@ -6,6 +6,7 @@ import { getSettings } from '../settings/settingsStorage';
 import { getCurrentLocation, type LocationResult } from '../location/locationService';
 import { dispatchEmergencySms, dispatchSafeSms, dispatchLocationUpdateSms } from '../dispatch/smsDispatch';
 import { appendHistoryEntry, resolveHistoryEntry } from '../history/historyStorage';
+import { placeConfiguredEmergencyCall } from '../dispatch/emergencyCall';
 import {
   startEmergencyForegroundService,
   stopEmergencyForegroundService,
@@ -237,6 +238,11 @@ export const sosMachine = setup({
         console.warn('[sosMachine] startDeterrenceAndEvidence error:', err)
       );
     },
+    placeEmergencyCall: () => {
+      placeConfiguredEmergencyCall().catch((err) =>
+        console.warn('[sosMachine] placeEmergencyCall error:', err)
+      );
+    },
     stopDeterrenceAndEvidence: () => {
       stopEmergencyDeterrenceAndEvidence().catch((err) =>
         console.warn('[sosMachine] stopDeterrenceAndEvidence error:', err)
@@ -314,6 +320,8 @@ export const sosMachine = setup({
             assign(({ event }) => ({ location: event.output.location, lastError: event.output.warning ?? null })),
             'updateActiveNotification',
             'releaseWakeLock',
+            // After the texts are queued, so the call can never hold up or replace them.
+            'placeEmergencyCall',
           ],
         },
         onError: {

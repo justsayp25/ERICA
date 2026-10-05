@@ -55,6 +55,17 @@ export const Vibration = {
   },
 };
 
+export const Linking = {
+  _opened: [],
+  async openURL(url) {
+    this._opened.push(url);
+    return true;
+  },
+  async openSettings() {
+    return true;
+  },
+};
+
 export const Alert = {
   alert: (title, message, buttons) => {},
 };
@@ -68,6 +79,7 @@ export const TurboModuleRegistry = {
 
 export default {
   Vibration,
+  Linking,
   AppState,
   StyleSheet,
   Platform,

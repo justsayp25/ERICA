@@ -8,6 +8,9 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Bundle
+import android.telecom.TelecomManager
 import android.os.Build
 import android.telephony.SmsManager
 import android.util.Log
@@ -50,6 +53,31 @@ class SilentSmsModule : Module() {
         } catch (e: Throwable) {
           promise.reject("AVAILABILITY_CHECK_FAILED", e.message, e)
         }
+      }
+    }
+
+    // Places a phone call straight away (no dialer screen to confirm). TelecomManager rather
+    // than an ACTION_CALL activity, because an alert can fire with the app in the background,
+    // where Android blocks starting activities.
+    AsyncFunction("placeCall") { number: String, promise: Promise ->
+      try {
+        if (number.isBlank()) {
+          promise.reject("CALL_INVALID_NUMBER", "No phone number to call", null)
+          return@AsyncFunction
+        }
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.CALL_PHONE) != PackageManager.PERMISSION_GRANTED) {
+          promise.reject("CALL_PERMISSION_MISSING", "CALL_PHONE permission has not been granted", null)
+          return@AsyncFunction
+        }
+        val telecom = context.getSystemService(TelecomManager::class.java)
+        if (telecom == null) {
+          promise.reject("CALL_UNAVAILABLE", "This device cannot place calls", null)
+          return@AsyncFunction
+        }
+        telecom.placeCall(Uri.fromParts("tel", number, null), Bundle())
+        promise.resolve(true)
+      } catch (e: Throwable) {
+        promise.reject("CALL_FAILED", e.message, e)
       }
     }
 

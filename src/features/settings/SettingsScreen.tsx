@@ -4,7 +4,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { getSettings, saveSettings, DEFAULT_SETTINGS, type AlertMode, type Settings } from './settingsStorage';
 import { startAlertVibration, stopAlertVibration } from '../evidence/vibration';
-import { requestEvidencePermission } from '../permissions/emergencyPermissions';
+import { requestCallPermission, requestEvidencePermission } from '../permissions/emergencyPermissions';
+import { getContacts, type Contact } from '../contacts/contactsStorage';
 import { configureVolumeTrigger, VolumePatternEngine } from '../../../modules/physical-triggers';
 import { startDeterrence, stopDeterrence } from '../../../modules/deterrence-evidence';
 
@@ -111,6 +112,7 @@ export function SettingsScreen() {
   const [testFeedback, setTestFeedback] = useState<string | null>(null);
   const [isTesting, setIsTesting] = useState(false);
   const [practicePresses, setPracticePresses] = useState(0);
+  const [contacts, setContacts] = useState<Contact[]>([]);
   const practiceEngine = useRef(new VolumePatternEngine({ enabled: true, pressCount: 4, windowSeconds: 3 }));
 
   useFocusEffect(
@@ -121,6 +123,9 @@ export function SettingsScreen() {
         setName(s.userName);
         setMessage(s.customMessage);
       });
+      getContacts()
+        .then(setContacts)
+        .catch(() => setContacts([]));
     }, [])
   );
 
@@ -199,6 +204,18 @@ export function SettingsScreen() {
       setIsTesting(false);
       setTimeout(() => setTestFeedback(null), 2000);
     }, 3000);
+  };
+
+  const chooseCallContact = async (id: string) => {
+    if (id === '') {
+      update({ emergencyCallContactId: null });
+      return;
+    }
+    if (!(await requestCallPermission())) {
+      Alert.alert('Permission needed', 'Android did not allow ERICA to make calls, so the call stays off.');
+      return;
+    }
+    update({ emergencyCallContactId: id });
   };
 
   const askEvidenceConsent = (kind: 'audio' | 'camera', on: boolean) => {
@@ -345,6 +362,21 @@ export function SettingsScreen() {
                 <Text style={styles.secondaryButtonText}>{isTesting ? 'Testing…' : 'Test for 3 seconds'}</Text>
               </Pressable>
             </>
+          ) : null}
+          <Text style={[styles.label, { marginTop: 16 }]}>Call someone after the text is sent</Text>
+          {contacts.length === 0 ? (
+            <Text style={styles.hint}>Add a contact first.</Text>
+          ) : (
+            <Choice<string>
+              options={[{ label: 'No call', value: '' }, ...contacts.map((c) => ({ label: c.name, value: c.id }))]}
+              value={
+                contacts.some((c) => c.id === settings.emergencyCallContactId) ? settings.emergencyCallContactId ?? '' : ''
+              }
+              onChange={chooseCallContact}
+            />
+          )}
+          {settings.emergencyCallContactId ? (
+            <Text style={styles.hint}>The siren stays off during the call so you can talk.</Text>
           ) : null}
           <Text style={[styles.label, { marginTop: 16 }]}>Send my location again every</Text>
           <Choice<number>

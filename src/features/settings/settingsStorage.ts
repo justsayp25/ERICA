@@ -26,6 +26,11 @@ export interface Settings {
   liveLocationIntervalSeconds?: number;
   /** Require holding the SOS button instead of a single tap. */
   holdToTrigger?: boolean;
+  /**
+   * Contact (by its random id, never the number) to phone right after the alert texts are
+   * queued. Unset = no call. Calling emergency services is deliberately not offered.
+   */
+  emergencyCallContactId?: string | null;
 
   // Phase 4 Evidence Capture Consent Gates (Strict Consent Required: OFF by default)
   evidenceAudioConsentEnabled?: boolean;
@@ -56,6 +61,7 @@ export const DEFAULT_SETTINGS: Settings = {
   respectSilentMode: true,
   liveLocationIntervalSeconds: 0,
   holdToTrigger: false,
+  emergencyCallContactId: null,
   evidenceAudioConsentEnabled: false,
   evidencePhotoConsentEnabled: false,
   evidenceDualCamera: true,

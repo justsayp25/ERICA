@@ -9,6 +9,10 @@ class SilentSmsModule extends NativeModule {
   async isAvailableAsync(): Promise<boolean> {
     return false;
   }
+
+  async placeCall(_number: string): Promise<boolean> {
+    return false;
+  }
 }
 
 export default registerWebModule(SilentSmsModule, 'SilentSms');
