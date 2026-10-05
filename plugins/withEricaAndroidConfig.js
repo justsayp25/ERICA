@@ -15,8 +15,7 @@ const ERICA_PERMISSIONS = [
   'android.permission.WAKE_LOCK',
   'android.permission.RECEIVE_BOOT_COMPLETED',
   'android.permission.POST_NOTIFICATIONS',
-  'android.permission.USE_BIOMETRIC',
-  'android.permission.USE_FINGERPRINT',
+  'android.permission.READ_CONTACTS',
   'android.permission.CAMERA',
   'android.permission.FLASHLIGHT',
   'android.permission.RECORD_AUDIO',
@@ -34,8 +33,8 @@ const ERICA_PERMISSIONS = [
  * - WAKE_LOCK: Prevents CPU sleep during active SOS dispatch sequence
  * - RECEIVE_BOOT_COMPLETED: Allows auto-recovery / watchdog readiness after device reboot
  * - POST_NOTIFICATIONS: Notifications for emergency status and armed countdown
- * - USE_BIOMETRIC: Allows biometric verification (Fingerprint / Face Unlock)
- * - USE_FINGERPRINT: Legacy biometric permission fallback for Android 9 and lower
+ * - READ_CONTACTS: Lets the user pick phone contacts to import as trusted contacts (read only;
+ *   WRITE_CONTACTS, which expo-contacts would add, is blocked in app.json)
  */
 const withEricaAndroidPermissions = (config) => {
   return withAndroidManifest(config, async (config) => {
