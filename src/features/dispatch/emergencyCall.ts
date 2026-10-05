@@ -1,4 +1,5 @@
 import { placeCall } from '../../../modules/silent-sms';
+import { stopSirenOnly } from '../../../modules/deterrence-evidence';
 import { getContacts } from '../contacts/contactsStorage';
 import { getSettings } from '../settings/settingsStorage';
 
@@ -29,6 +30,9 @@ export async function placeConfiguredEmergencyCall(): Promise<EmergencyCallOutco
   if (!number) return 'no-contact';
 
   try {
+    // The siren has been sounding since SOS was pressed; silence it so the call can be heard.
+    // The flashing light and vibration carry on.
+    await stopSirenOnly();
     return (await caller(number)) ? 'placed' : 'failed';
   } catch (err) {
     console.warn('[emergencyCall] Call failed:', err);

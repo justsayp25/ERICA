@@ -19,7 +19,6 @@ export interface Settings {
   deterrenceSirenEnabled?: boolean;
   deterrenceStrobeEnabled?: boolean;
   vibrationEnabled?: boolean;
-  respectSilentMode?: boolean;
 
   // Parity features
   /** Re-send the current position by SMS this often while an alert is active. 0 = off. */
@@ -52,13 +51,12 @@ export const DEFAULT_SETTINGS: Settings = {
   volumeWindowSeconds: 3,
 
   // Loud by default (siren, flashing light, vibration); evidence capture below still needs
-  // explicit consent. Respect Silent Mode stays ON so a phone set to silent/vibrate does not
-  // sound the siren.
+  // explicit consent. Loud mode is never muted by the phone's silent/vibrate switch: Silent
+  // mode is the way to have no siren.
   alertMode: 'loud',
   deterrenceSirenEnabled: true,
   deterrenceStrobeEnabled: true,
   vibrationEnabled: true,
-  respectSilentMode: true,
   liveLocationIntervalSeconds: 0,
   holdToTrigger: false,
   emergencyCallContactId: null,

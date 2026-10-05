@@ -97,6 +97,14 @@ export async function stopDeterrence(): Promise<void> {
 }
 
 /**
+ * Stops only the siren (the strobe keeps flashing). Used when an emergency call starts, so
+ * the caller can be heard.
+ */
+export async function stopSirenOnly(): Promise<void> {
+  await activeAdapter.stopSiren().catch((err) => console.warn('[Deterrence] stopSiren error:', err));
+}
+
+/**
  * Starts consent-gated audio recording off the main thread.
  * If consent is not explicitly granted, this immediately returns false without recording.
  */

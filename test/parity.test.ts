@@ -51,7 +51,6 @@ test('defaults: loud mode with siren, strobe and vibration on; live location off
   assert.strictEqual(DEFAULT_SETTINGS.deterrenceSirenEnabled, true);
   assert.strictEqual(DEFAULT_SETTINGS.deterrenceStrobeEnabled, true);
   assert.strictEqual(DEFAULT_SETTINGS.vibrationEnabled, true);
-  assert.strictEqual(DEFAULT_SETTINGS.respectSilentMode, true);
   assert.strictEqual(DEFAULT_SETTINGS.liveLocationIntervalSeconds, 0);
   assert.strictEqual(DEFAULT_SETTINGS.holdToTrigger, false);
   assert.strictEqual(DEFAULT_SETTINGS.evidenceAudioConsentEnabled, false);
@@ -255,7 +254,8 @@ test('hold to trigger: the SOS button only starts an alert on a long press when 
 
 async function runAlert(
   settings: Partial<typeof DEFAULT_SETTINGS>,
-  caller: (n: string, sentSoFar: string[]) => Promise<boolean>
+  caller: (n: string, sentSoFar: string[]) => Promise<boolean>,
+  deterrence: Parameters<typeof configureDeterrenceEvidenceOverrides>[0] = {}
 ) {
   const sent: string[] = [];
   const teardown = await initDispatchEngine({
@@ -271,6 +271,7 @@ async function runAlert(
     getRingerMode: async () => 'normal',
     startSiren: async () => ({ started: true, suppressedBySilentMode: false }),
     startStrobe: async () => true,
+    ...deterrence,
   });
   setEmergencyCallerForTesting((n) => caller(n, sent));
   await saveSettings({ ...DEFAULT_SETTINGS, countdownSeconds: 1, ...settings });
@@ -339,26 +340,58 @@ test('emergency call: a failing call never affects the alert; a deleted contact 
   assert.deepStrictEqual(called, []);
 });
 
-test('emergency call: the siren is skipped so the call can be heard (strobe and vibration still run)', async () => {
-  const started: string[] = [];
-  configureDeterrenceEvidenceOverrides({
-    getRingerMode: async () => 'normal',
-    startSiren: async () => {
-      started.push('siren');
-      return { started: true, suppressedBySilentMode: false };
-    },
-    startStrobe: async () => {
-      started.push('strobe');
+test('emergency call: the siren sounds during the countdown and only it stops when the call starts', async () => {
+  const events: string[] = [];
+  const run = await runAlert(
+    { emergencyCallContactId: 'c1' },
+    async () => {
+      events.push('call');
       return true;
     },
-  });
-  await saveSettings({ ...DEFAULT_SETTINGS, emergencyCallContactId: 'c1' });
-  await startEmergencyDeterrenceAndEvidence('s4');
-  await stopEmergencyDeterrenceAndEvidence();
-  assert.deepStrictEqual(started, ['strobe']);
-  assert.ok(vibrationCalls().some((c) => c.type === 'vibrate'));
+    {
+      startSiren: async () => {
+        events.push('siren:on');
+        return { started: true, suppressedBySilentMode: false };
+      },
+      startStrobe: async () => {
+        events.push('strobe:on');
+        return true;
+      },
+      stopSiren: async () => {
+        events.push('siren:off');
+        return true;
+      },
+      stopStrobe: async () => {
+        events.push('strobe:off');
+        return true;
+      },
+    }
+  );
+  await waitFor(() => events.includes('call'));
+  const on = events.indexOf('siren:on');
+  const call = events.indexOf('call');
+  const during = events.slice(on, call);
+  assert.ok(on !== -1 && on < call, 'the siren sounds before the call');
+  assert.ok(during.includes('siren:off'), 'the siren is stopped before the call starts');
+  assert.ok(!during.includes('strobe:off'), 'the flashing keeps going');
+  await finish(run);
 });
 
+test('loud mode is never muted by the phone being on vibrate or silent', async () => {
+  const respectArgs: (boolean | undefined)[] = [];
+  configureDeterrenceEvidenceOverrides({
+    getRingerMode: async () => 'vibrate',
+    startSiren: async (respectSilentMode) => {
+      respectArgs.push(respectSilentMode);
+      return { started: true, suppressedBySilentMode: false };
+    },
+    startStrobe: async () => true,
+  });
+  await saveSettings({ ...DEFAULT_SETTINGS });
+  await startEmergencyDeterrenceAndEvidence('s5');
+  await stopEmergencyDeterrenceAndEvidence();
+  assert.deepStrictEqual(respectArgs, [false]);
+});
 test('loud mode: siren and flashing start the moment SOS is pressed; CANCEL stops them (Law 4)', async () => {
   const events: string[] = [];
   configureDeterrenceEvidenceOverrides({

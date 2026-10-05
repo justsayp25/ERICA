@@ -22,6 +22,8 @@ class SirenController(private val context: Context) {
   private val isRunning = AtomicBoolean(false)
   private var sirenJob: Job? = null
   private var audioTrack: AudioTrack? = null
+  // Alarm volume before the siren raised it; restored when the siren stops.
+  private var savedAlarmVolume: Int? = null
 
   fun getRingerMode(): String {
     return when (audioManager?.ringerMode) {
@@ -50,6 +52,10 @@ class SirenController(private val context: Context) {
     if (isRunning.getAndSet(true)) {
       return Pair(true, false) // Already running
     }
+
+    // The siren plays on the alarm stream, so a low alarm volume made it barely audible or
+    // silent. Raise it to the maximum for the emergency and put it back afterwards.
+    raiseAlarmVolume()
 
     sirenJob = CoroutineScope(Dispatchers.IO).launch {
       var track: AudioTrack? = null
@@ -126,7 +132,32 @@ class SirenController(private val context: Context) {
     sirenJob?.cancel()
     sirenJob = null
     audioTrack?.let { releaseTrack(it) }
+    restoreAlarmVolume()
     return true
+  }
+
+  private fun raiseAlarmVolume() {
+    val manager = audioManager ?: return
+    try {
+      if (savedAlarmVolume == null) {
+        savedAlarmVolume = manager.getStreamVolume(AudioManager.STREAM_ALARM)
+      }
+      manager.setStreamVolume(AudioManager.STREAM_ALARM, manager.getStreamMaxVolume(AudioManager.STREAM_ALARM), 0)
+    } catch (e: Throwable) {
+      // Some Do Not Disturb policies refuse volume changes; the siren still plays at the current volume.
+      Log.w(TAG, "Could not raise alarm volume", e)
+    }
+  }
+
+  private fun restoreAlarmVolume() {
+    val manager = audioManager ?: return
+    val previous = savedAlarmVolume ?: return
+    savedAlarmVolume = null
+    try {
+      manager.setStreamVolume(AudioManager.STREAM_ALARM, previous, 0)
+    } catch (e: Throwable) {
+      Log.w(TAG, "Could not restore alarm volume", e)
+    }
   }
 
   @Synchronized

@@ -3,7 +3,7 @@ import { View, Text, Pressable, StyleSheet, Platform, Linking, Vibration } from 
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSosService } from './sosMachine';
-import { getSettings, type AlertMode } from '../settings/settingsStorage';
+import { getSettings } from '../settings/settingsStorage';
 import { getContacts } from '../contacts/contactsStorage';
 import { requestEmergencyPermissions } from '../permissions/emergencyPermissions';
 import { addMarkSafeListener } from '../../../modules/foreground-service';
@@ -16,7 +16,6 @@ export function SosScreen() {
   const isIdle = state.matches('idle');
   const [smsPermissionMissing, setSmsPermissionMissing] = useState(false);
   const [holdToTrigger, setHoldToTrigger] = useState(false);
-  const [alertMode, setAlertMode] = useState<AlertMode>('loud');
   const [contactCount, setContactCount] = useState<number | null>(null);
 
   // Physical panic triggers are handled once, globally, in App.tsx. Listening here as well
@@ -52,7 +51,6 @@ export function SosScreen() {
       if (isIdle) {
         getSettings().then((s) => {
           setHoldToTrigger(Boolean(s.holdToTrigger));
-          setAlertMode(s.alertMode ?? 'loud');
           send({ type: 'SETTINGS_UPDATED', countdownSeconds: s.countdownSeconds });
         });
         getContacts()
@@ -89,12 +87,7 @@ export function SosScreen() {
           </Text>
           {contactCount === 0 ? (
             <Text style={styles.warning}>You have no contacts yet. Add someone in the Contacts tab.</Text>
-          ) : (
-            <Text style={styles.status}>
-              {alertMode === 'loud' ? 'Loud mode' : 'Silent mode'}
-              {contactCount !== null ? ` · ${contactCount} ${contactCount === 1 ? 'contact' : 'contacts'}` : ''}
-            </Text>
-          )}
+          ) : null}
           {smsPermissionMissing ? (
             <Pressable style={styles.permissionBanner} onPress={onGrantSmsPermission}>
               <Text style={styles.permissionBannerText}>
@@ -166,7 +159,6 @@ const styles = StyleSheet.create({
   dismissButtonText: { color: '#C7C7CC', fontWeight: '600' },
   safeButton: { backgroundColor: '#2E7D32', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 24 },
   safeButtonText: { color: 'white', fontWeight: '700' },
-  status: { color: '#8E8E93', fontSize: 13 },
   warning: { color: '#FF9F43', fontSize: 13, textAlign: 'center', maxWidth: 280 },
   permissionBanner: { borderWidth: 1, borderColor: '#FF9F43', borderRadius: 12, padding: 12, maxWidth: 300 },
   permissionBannerText: { color: '#FF9F43', fontSize: 13, textAlign: 'center' },

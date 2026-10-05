@@ -116,6 +116,18 @@ test('removed features stay removed: no shake detector, PIN, app lock, duress or
   assert.ok(!/LockScreen|useAppLock|DecoyScreen/.test(fs.readFileSync('App.tsx', 'utf8')), 'App.tsx must not gate on a PIN');
 });
 
+test('siren plays at full alarm volume and puts the old volume back when it stops', () => {
+  const siren = fs.readFileSync(
+    'modules/deterrence-evidence/android/src/main/java/expo/modules/deterrenceevidence/SirenController.kt',
+    'utf8'
+  );
+  const start = siren.slice(siren.indexOf('fun startSiren('), siren.indexOf('fun stopSiren('));
+  const stop = siren.slice(siren.indexOf('fun stopSiren('), siren.indexOf('private fun raiseAlarmVolume'));
+  assert.ok(start.includes('raiseAlarmVolume()'), 'startSiren must raise the alarm volume');
+  assert.ok(stop.includes('restoreAlarmVolume()'), 'stopSiren must restore it');
+  assert.ok(siren.includes('getStreamMaxVolume(AudioManager.STREAM_ALARM)'));
+});
+
 test('boot receiver ships in the library and reads the outbox where expo-sqlite stores it', () => {
   const manifest = fs.readFileSync('modules/foreground-service/android/src/main/AndroidManifest.xml', 'utf8');
   assert.ok(manifest.includes('expo.modules.foregroundservice.EricaBootReceiver'));

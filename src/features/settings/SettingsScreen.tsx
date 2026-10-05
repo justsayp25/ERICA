@@ -189,12 +189,9 @@ export function SettingsScreen() {
           ? await startDeterrence({
               sirenEnabled: siren,
               strobeEnabled: strobe,
-              respectSilentMode: settings.respectSilentMode ?? true,
+              respectSilentMode: false,
             })
           : { suppressedBySilentMode: false };
-      if (status.suppressedBySilentMode) {
-        setTestFeedback('Phone is on silent/vibrate, so the siren is muted (see Advanced).');
-      }
     } catch {
       setTestFeedback('Test failed.');
     }
@@ -376,7 +373,7 @@ export function SettingsScreen() {
             />
           )}
           {settings.emergencyCallContactId ? (
-            <Text style={styles.hint}>The siren stays off during the call so you can talk.</Text>
+            <Text style={styles.hint}>The siren stops when the call starts so you can talk.</Text>
           ) : null}
           <Text style={[styles.label, { marginTop: 16 }]}>Send my location again every</Text>
           <Choice<number>
@@ -415,11 +412,6 @@ export function SettingsScreen() {
         </Pressable>
         {showAdvanced ? (
           <View style={styles.card}>
-            <Toggle
-              title="Mute the siren when the phone is on silent"
-              value={settings.respectSilentMode ?? true}
-              onChange={(v) => update({ respectSilentMode: v })}
-            />
             <Stepper
               label="Volume press time window"
               value={windowSeconds}

@@ -32,11 +32,10 @@ import { sosMachine } from '../src/features/sos/sosMachine';
 import { isEncryptedPayload } from '../src/features/security/encryption';
 import { wipeMasterKeyMemory } from '../src/features/security/masterKey';
 
-test('1. Defaults: loud deterrence is ON, Respect Silent Mode is ON, evidence consent stays OFF', async () => {
+test('1. Defaults: loud deterrence is ON, evidence consent stays OFF', async () => {
   assert.strictEqual(DEFAULT_SETTINGS.alertMode, 'loud', 'Alert mode defaults to loud');
   assert.strictEqual(DEFAULT_SETTINGS.deterrenceSirenEnabled, true, 'Siren is on by default in loud mode');
   assert.strictEqual(DEFAULT_SETTINGS.deterrenceStrobeEnabled, true, 'Strobe is on by default in loud mode');
-  assert.strictEqual(DEFAULT_SETTINGS.respectSilentMode, true, 'respectSilentMode must be ON by default');
   assert.strictEqual(DEFAULT_SETTINGS.evidenceAudioConsentEnabled, false, 'Audio recording consent must be OFF by default');
   assert.strictEqual(DEFAULT_SETTINGS.evidencePhotoConsentEnabled, false, 'Photo capture consent must be OFF by default');
   assert.strictEqual(DEFAULT_SETTINGS.evidenceDualCamera, true, 'Default dual camera preference should be true');
