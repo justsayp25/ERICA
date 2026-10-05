@@ -8,6 +8,7 @@ import { getSettings } from './src/features/settings';
 import { getSosService } from './src/features/sos';
 import { runStorageMigration, runCryptoSanityCheck } from './src/features/security';
 import { configureVolumeTrigger, addPanicTriggerListener } from './modules/physical-triggers';
+import { WelcomeScreen } from './src/features/onboarding/WelcomeScreen';
 
 export async function initPhysicalTriggers(): Promise<() => void> {
   const settings = await getSettings();
@@ -31,6 +32,14 @@ export async function initPhysicalTriggers(): Promise<() => void> {
 
 export default function App() {
   const [cryptoCorrupted, setCryptoCorrupted] = useState(false);
+  // null until settings are read: the name decides whether the welcome screen is shown.
+  const [hasName, setHasName] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    getSettings()
+      .then((s) => setHasName(s.userName.trim().length > 0))
+      .catch(() => setHasName(false));
+  }, []);
 
   useEffect(() => {
     let cleanupDispatch: (() => void) | undefined;
@@ -95,12 +104,19 @@ export default function App() {
           </Text>
         </View>
       )}
-      <RootNavigator />
+      {hasName === null ? (
+        <View style={styles.blank} />
+      ) : hasName ? (
+        <RootNavigator />
+      ) : (
+        <WelcomeScreen onDone={() => setHasName(true)} />
+      )}
     </SafeAreaProvider>
   );
 }
 
 const styles = StyleSheet.create({
+  blank: { flex: 1, backgroundColor: '#0B0B0F' },
   warningBanner: {
     backgroundColor: '#D7263D',
     paddingVertical: 8,
